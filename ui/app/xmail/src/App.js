@@ -1,5 +1,5 @@
 import React, { Fragment } from 'react';
-import { Grid, Icon, Menu} from 'semantic-ui-react';
+import {Grid, Input, Menu} from 'semantic-ui-react';
 
 import Mails from "./Mails";
 import Header from "./Header";
