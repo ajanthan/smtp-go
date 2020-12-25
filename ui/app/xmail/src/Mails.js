@@ -1,5 +1,5 @@
 import React,{useState,useEffect} from 'react'
-import {Container, Header, Table, List, Portal, Segment, Button, Grid, Label} from 'semantic-ui-react'
+import {Container, Header, Table, List, Portal, Segment, Button, Label} from 'semantic-ui-react'
 
 function Mails() {
   const [mails,setMails]=useState(new Map())

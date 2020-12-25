@@ -2,7 +2,7 @@ import React from 'react';
 import {Container, Icon,Menu} from 'semantic-ui-react';
 
 
-export default () =>{
+const Header= () =>{
    return( <Menu>
         <Container>
             <Menu.Item as="a" header>
@@ -24,3 +24,4 @@ export default () =>{
         </Container>
     </Menu>)
 }
+export default Header;
