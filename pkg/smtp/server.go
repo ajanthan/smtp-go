@@ -2,11 +2,9 @@ package smtp
 
 import (
 	"fmt"
-	"github/ajanthan/smtp-go/pkg/commands"
 	"github/ajanthan/smtp-go/pkg/storage"
 	"net"
 	"strconv"
-	"strings"
 )
 
 type Server struct {
@@ -26,114 +24,73 @@ func (s Server) Start() {
 		if err != nil {
 			panic(fmt.Sprintf("error accepting conn %v", err))
 		}
-		go s.handleConnection(conn)
+		go s.handleConnection(Connection{
+			Conn: conn,
+		})
 	}
 }
 
-func (s Server) handleConnection(c net.Conn) {
-	defer c.Close()
-	//starting a session
+func (s Server) handleConnection(c Connection) {
+	defer c.Conn.Close()
+
+	// starting a session
 	mail := storage.Envelope{}
-	helloCmd := commands.HelloCmd{
-		Domain:    s.Address,
-		Greetings: "is READY",
-	}
-	if _, err := c.Write(helloCmd.Bytes()); err != nil {
+	if err := c.Reply(STATUS_READY, s.Address+" is READY"); err != nil {
 		panic(fmt.Sprintf("error sending hello %v", err))
-
 	}
+
+	// handling smtp commands
 	for {
-		buff := make([]byte, 1024)
-		if _, err := c.Read(buff); err != nil {
-			panic(fmt.Sprintf("error reading from conn %v", err))
-
+		cmd, err := c.ReceiveCMD()
+		if err != nil {
+			panic(fmt.Sprintf("error cmd %v", err))
 		}
-		cmdIn := string(buff)
-		cmdIn = strings.Split(cmdIn, "\r\n")[0]
-		args := strings.Split(cmdIn, " ")
-		cmd := args[0]
-		args = args[1:len(args)]
-		switch cmd {
+		switch cmd.Name {
 		case "QUIT":
-			quitCmd := commands.QuitCmd{
-				Message: fmt.Sprintf("%s service closing transmission channel", s.Address),
-			}
 			s.Receiver.Receive(mail)
-			if _, err := c.Write(quitCmd.Bytes()); err != nil {
+			message := fmt.Sprintf("%s service closing transmission channel", s.Address)
+			if err := c.Reply(STATUS_CLOSE, message); err != nil {
 				panic(fmt.Sprintf("error sending hello %v", err))
-
 			}
-			return
+			break
 		case "EHLO":
-			okCmd := commands.Ok{
-				Message: s.Address,
-			}
-			if _, err := c.Write(okCmd.Bytes()); err != nil {
+			message := fmt.Sprintf("%s greets %s", s.Address, cmd.Args[0])
+			if err := c.Reply(STATUS_OK, message); err != nil {
 				panic(fmt.Sprintf("error sending hello %v", err))
-
 			}
 		case "HELLO":
 		case "MAIL":
-			if strings.HasPrefix(args[0], "FROM:") {
-				part := strings.TrimLeft(args[0], "FROM:<")
-				mail.Sender = strings.TrimRight(part, ">")
+			sender, err := cmd.GetFrom()
+			if err != nil {
+				panic(fmt.Sprintf("invalid MAIL command %v", err))
 			}
-			okCmd := commands.Ok{
-				Message: "OK",
-			}
-			if _, err := c.Write(okCmd.Bytes()); err != nil {
+			mail.Sender = sender
+			if err := c.Reply(STATUS_OK, "OK"); err != nil {
 				panic(fmt.Sprintf("error sending hello %v", err))
-
 			}
 		case "RCPT":
-			if strings.HasPrefix(args[0], "TO:") {
-				part := strings.TrimLeft(args[0], "TO:<")
-				part = strings.TrimRight(part, ">")
-				mail.Recipient = append(mail.Recipient, part)
+			recipient, err := cmd.GetTo()
+			if err != nil {
+				panic(fmt.Sprintf("invalid RCPT command %v", err))
 			}
-			okCmd := commands.Ok{
-				Message: "OK",
-			}
-			if _, err := c.Write(okCmd.Bytes()); err != nil {
+			mail.Recipient = append(mail.Recipient, recipient)
+			if err := c.Reply(STATUS_OK, "OK"); err != nil {
 				panic(fmt.Sprintf("error sending hello %v", err))
-
 			}
 		case "DATA":
-			continueCmd := commands.ContinueCmd{
-				Message: "Start mail input; end with <CRLF>.<CRLF>",
-			}
-			if _, err := c.Write(continueCmd.Bytes()); err != nil {
+			message := "Start mail input; end with <CRLF>.<CRLF>"
+			if err := c.Reply(STATUS_CONTINUE, message); err != nil {
 				panic(fmt.Sprintf("error sending hello %v", err))
-
 			}
-			message, err := readBody(c)
+			body, err := c.ReceiveBody()
 			if err != nil {
 				panic(fmt.Sprintf("error reading body %v", err))
 			}
-			mail.Content = message
-			okCmd := commands.Ok{
-				Message: "OK",
-			}
-			if _, err := c.Write(okCmd.Bytes()); err != nil {
+			mail.Content = body
+			if err := c.Reply(STATUS_OK, "OK"); err != nil {
 				panic(fmt.Sprintf("error sending hello %v", err))
 
 			}
 		}
-	}
-}
-
-func readBody(c net.Conn) ([]byte, error) {
-	var message []byte
-	for {
-		buff := make([]byte, 1024)
-		if _, err := c.Read(buff); err != nil {
-			return nil, err
-		}
-		if strings.Contains(string(buff), "\r\n.\r\n") {
-			line := strings.Split(string(buff), "\r\n.\r\n")
-			message = append(message, line[0]...)
-			return message, nil
-		}
-		message = append(message, buff...)
 	}
 }
