@@ -91,6 +91,7 @@ func (s *Session) HandleQuit() error {
 	if err := s.Reply(StatusClose, message); err != nil {
 		return NewServerError(fmt.Sprintf("error sending hello %v", err))
 	}
+	s.Conn.Close()
 	return nil
 }
 
