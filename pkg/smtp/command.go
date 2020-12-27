@@ -8,23 +8,27 @@ import (
 type Command struct {
 	Name string
 	Args []string
+	From string
+	To   string
 }
 
-func (c Command) GetFrom() (string, error) {
+func (c Command) ParseFrom() error {
 	if strings.HasPrefix(c.Args[0], "FROM:") {
 		part := strings.TrimLeft(c.Args[0], "FROM:<")
-		return strings.TrimRight(part, ">"), nil
+		c.From = strings.TrimRight(part, ">")
+		return nil
 	} else {
-		return "", errors.New("invalid MAIL command")
+		return errors.New("invalid MAIL command")
 	}
 }
 
-func (c Command) GetTo() (string, error) {
+func (c Command) ParseTo() error {
 	if strings.HasPrefix(c.Args[0], "TO:") {
 		part := strings.TrimLeft(c.Args[0], "TO:<")
 		part = strings.TrimRight(part, ">")
-		return part, nil
+		c.To = part
+		return nil
 	} else {
-		return "", errors.New("invalid RCPT command")
+		return errors.New("invalid RCPT command")
 	}
 }

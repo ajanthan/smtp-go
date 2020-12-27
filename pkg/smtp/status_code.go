@@ -1,8 +1,11 @@
 package smtp
 
 const (
-	STATUS_READY    = 220
-	STATUS_OK       = 250
-	STATUS_CLOSE    = 221
-	STATUS_CONTINUE = 354
+	StatusReady                 = 220
+	StatusOk                    = 250
+	StatusClose                 = 221
+	StatusContinue              = 354
+	StatusSyntaxError           = 501
+	StatusOutOfSequenceCmdError = 503
+	StatusUnknownError          = 554
 )
