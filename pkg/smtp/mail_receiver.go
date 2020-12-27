@@ -37,6 +37,10 @@ func parseMail(body []byte) (storage.Mail, error) {
 	headers := make(map[string][]string)
 	for _, headerPart := range headerParts {
 		keyVal := strings.SplitN(headerPart, ":", 2)
+		for i, val := range keyVal[1:] {
+			val = strings.TrimLeft(val, " ")
+			keyVal[i+1] = val
+		}
 		headers[keyVal[0]] = keyVal[1:]
 	}
 	mail := storage.Mail{
@@ -46,16 +50,21 @@ func parseMail(body []byte) (storage.Mail, error) {
 		ReplyTo:   headers["Reply-To"][0],
 		MessageID: headers["Message-ID"][0],
 		Date:      headers["Date"][0],
-		Body: storage.Body{
-			ContentType: headers["Content-Type"][0],
-			Data:        parts[1]},
 	}
+	_, isMIME := headers["MIME-Version"]
+	if isMIME {
+		mail.Body = storage.Body{
+			ContentType: headers["Content-Type"][0]}
+	} else {
+		mail.Body = storage.Body{}
+	}
+	mail.Body.Data = parts[1]
 	return mail, nil
 
 }
 
 type DBReceiver struct {
-	Storage *storage.Storage
+	Storage *storage.SQLiteStorage
 }
 
 func (p *DBReceiver) Receive(mail storage.Envelope) error {

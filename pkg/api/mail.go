@@ -9,7 +9,7 @@ import (
 )
 
 type MailAPI struct {
-	Storage storage.Storage
+	Storage storage.SQLiteStorage
 }
 
 func (m MailAPI) HandleGetAllMails(context *gin.Context) {

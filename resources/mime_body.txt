@@ -1,0 +1,84 @@
+Date: Sat, 26 Dec 2020 22:16:50 -0800 (PST)
+From: test <wso2iamtest@gmail.com>
+Reply-To: wso2iamtest@gmail.com
+To: subash@wso2.com
+Message-ID: <1011776967.4.1609049810438@localhost>
+Subject: WSO2 - Password Reset
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+<table align="center" cellpadding="0" cellspacing="0" border="0" width="100%"bgcolor="#f0f0f0">
+            <tr>
+            <td style="padding: 30px 30px 20px 30px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#ffffff" style="max-width: 650px; margin: auto;">
+                <tr>
+                    <td colspan="2" align="center" style="background-color: #333; padding: 40px;">
+                        <a href="http://wso2.com/" target="_blank"><img src="http://cdn.wso2.com/wso2/newsletter/images/nl-2017/wso2-logo-transparent.png" border="0" /></a>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" align="center" style="padding: 50px 50px 0px 50px;">
+                        <h1 style="padding-right: 0em; margin: 0; line-height: 40px; font-weight:300; font-family: 'Nunito Sans', Arial, Verdana, Helvetica, sans-serif; color: #666; text-align: left; padding-bottom: 1em;">
+                            Password Reset
+                        </h1>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="text-align: left; padding: 0px 50px 20px 50px;" valign="top">
+                        <p style="font-size: 18px; margin: 0; line-height: 24px; font-family: 'Nunito Sans', Arial, Verdana, Helvetica, sans-serif; color: #666; text-align: left; padding-bottom: 3%;">
+                            Hi subash,
+                        </p>
+                        <p style="font-size: 18px; margin: 0; line-height: 24px; font-family: 'Nunito Sans', Arial, Verdana, Helvetica, sans-serif; color: #666; text-align: left; padding-bottom: 3%;">
+                            We received a request to reset the password for the <b>subash</b> account that is associated with this email address.<br>
+                            If you made this request, please click the button below to securely reset your password.
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 0px 50px 0px 50px; text-align: left;">
+                        <table align="left" cellpadding="0" cellspacing="0" border="0" style="border-radius: 4px; background-color: #ff5000;">
+                            <tr>
+                                <td style="border-radius: 6px;  padding: 14px 0px;">
+                                    <a href="https://localhost:9443/accountrecoveryendpoint/confirmrecovery.do?confirmation=44125a7a-f65d-4539-b025-b95f368e90ca&amp;userstoredomain=PRIMARY&amp;username=subash&amp;tenantdomain=carbon.super&amp;callback=https%3A%2F%2Flocalhost%3A9443%2Fauthenticationendpoint%2Flogin.do%3Fclient_id%3DCONSOLE%26code_challenge%3D7No0tXodBedPt7u_tpRuKc34koAR478gYMRap0ep75w%26code_challenge_method%3DS256%26commonAuthCallerPath%3D%2Foauth2%2Fauthorize%26forceAuth%3Dfalse%26passiveAuth%3Dfalse%26redirect_uri%3Dhttps%3A%2F%2Flocalhost%3A9443%2Fconsole%2Flogin%26response_mode%3Dform_post%26response_type%3Dcode%26scope%3DSYSTEM+openid%26tenantDomain%3Dcarbon.super%26sessionDataKey%3D707dadd7-2827-4bfd-a985-a773a83d3368%26relyingParty%3DCONSOLE%26type%3Doidc%26sp%3DConsole%26isSaaSApp%3Dtrue%26authenticators%3DBasicAuthenticator%3ALOCAL"
+                                       target="_blank" style="width: 230px; font-family: 'Nunito Sans', Arial, Verdana, Helvetica, sans-serif;  font-size: 18px; line-height: 21px; font-weight: 600; color: #fff; text-decoration: none; background-color: #ff5000; text-align: center; display: inline-block; cursor: pointer;">Reset Password</a>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="text-align: left; padding: 40px 50px 0px 50px;" valign="top">
+                        <p style="font-size: 18px; margin: 0; line-height: 24px; font-family: 'Nunito Sans', Arial, Verdana, Helvetica, sans-serif; color: #505050; text-align: left;">
+                            If clicking the button doesn't seem to work, you can copy and paste the following link into your browser. <br/>
+                            <a style="word-break: break-all; color: #ff5000;font-size: 14px;" target="_blank"
+                               href="https://localhost:9443/accountrecoveryendpoint/confirmrecovery.do?confirmation=44125a7a-f65d-4539-b025-b95f368e90ca&amp;userstoredomain=PRIMARY&amp;username=subash&amp;tenantdomain=carbon.super&amp;callback=https%3A%2F%2Flocalhost%3A9443%2Fauthenticationendpoint%2Flogin.do%3Fclient_id%3DCONSOLE%26code_challenge%3D7No0tXodBedPt7u_tpRuKc34koAR478gYMRap0ep75w%26code_challenge_method%3DS256%26commonAuthCallerPath%3D%2Foauth2%2Fauthorize%26forceAuth%3Dfalse%26passiveAuth%3Dfalse%26redirect_uri%3Dhttps%3A%2F%2Flocalhost%3A9443%2Fconsole%2Flogin%26response_mode%3Dform_post%26response_type%3Dcode%26scope%3DSYSTEM+openid%26tenantDomain%3Dcarbon.super%26sessionDataKey%3D707dadd7-2827-4bfd-a985-a773a83d3368%26relyingParty%3DCONSOLE%26type%3Doidc%26sp%3DConsole%26isSaaSApp%3Dtrue%26authenticators%3DBasicAuthenticator%3ALOCAL">
+                                https://localhost:9443/accountrecoveryendpoint/confirmrecovery.do?confirmation=44125a7a-f65d-4539-b025-b95f368e90ca&amp;userstoredomain=PRIMARY&amp;username=subash&amp;tenantdomain=carbon.super&amp;callback=https%3A%2F%2Flocalhost%3A9443%2Fauthenticationendpoint%2Flogin.do%3Fclient_id%3DCONSOLE%26code_challenge%3D7No0tXodBedPt7u_tpRuKc34koAR478gYMRap0ep75w%26code_challenge_method%3DS256%26commonAuthCallerPath%3D%2Foauth2%2Fauthorize%26forceAuth%3Dfalse%26passiveAuth%3Dfalse%26redirect_uri%3Dhttps%3A%2F%2Flocalhost%3A9443%2Fconsole%2Flogin%26response_mode%3Dform_post%26response_type%3Dcode%26scope%3DSYSTEM+openid%26tenantDomain%3Dcarbon.super%26sessionDataKey%3D707dadd7-2827-4bfd-a985-a773a83d3368%26relyingParty%3DCONSOLE%26type%3Doidc%26sp%3DConsole%26isSaaSApp%3Dtrue%26authenticators%3DBasicAuthenticator%3ALOCAL</a>
+                        </p>
+                        <br>
+                        <p style="font-size: 18px; margin: 0; line-height: 24px; font-family: 'Nunito Sans', Arial, Verdana, Helvetica, sans-serif; color: #666; text-align: left; padding-bottom: 3%;">
+                            If you did not request to have your subash password reset, disregard this email and no changes to your account will be made.
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="text-align: left; padding: 30px 50px 50px 50px" valign="top">
+                        <p style="font-size: 18px; margin: 0; line-height: 24px; font-family: 'Nunito Sans', Arial, Verdana, Helvetica, sans-serif; color: #505050; text-align: left;">
+                            Thanks,<br/>WSO2 Identity Server Team
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" align="center" style="padding: 20px 40px 40px 40px;" bgcolor="#f0f0f0">
+                        <p style="font-size: 12px; margin: 0; line-height: 24px; font-family: 'Nunito Sans', Arial, Verdana, Helvetica, sans-serif; color: #777;">
+                            &copy;2020
+                            <a href="http://wso2.com/" target="_blank" style="color: #777; text-decoration: none">WSO2</a>
+                            <br>
+                            787 Castro Street, Mountain View, CA 94041.
+                        </p>
+                    </td>
+                </tr>
+                </table>
+            </td>
+            </tr>
+        </table>---
