@@ -36,7 +36,7 @@ function Mails() {
             <Portal onClose={()=>setOpen(false)} open={open}>
                 <Segment
                     style={{
-                        left: '25%',
+                        left: '30%',
                         position: 'fixed',
                         top: '8%',
                         zIndex: 1000,
