@@ -95,6 +95,16 @@ func (s *Session) HandleQuit() error {
 	return nil
 }
 
+func (s *Session) HandleReset() error {
+	s.IsMailReceived = false
+	s.IsAtLeastOneRcptReceived = false
+	if err := s.Reply(StatusOk, "OK"); err != nil {
+		return NewServerError(fmt.Sprintf("error sending hello %v", err))
+
+	}
+	return nil
+}
+
 func (s *Session) HandleUnknownError(err error) {
 	message := fmt.Sprintf("unknown server error:%s", err.Error())
 	if err := s.Reply(StatusUnknownError, message); err != nil {
@@ -181,6 +191,12 @@ func (s *Session) GetMail() (storage.Envelope, error) {
 			mail.Recipient = append(mail.Recipient, recipient)
 		case "DATA":
 			mail.Content, err = s.HandleData(cmd)
+			if err != nil {
+				return mail, err
+			}
+		case "RSET":
+			mail = storage.Envelope{}
+			err := s.HandleReset()
 			if err != nil {
 				return mail, err
 			}

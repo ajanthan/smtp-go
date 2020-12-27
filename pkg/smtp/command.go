@@ -12,7 +12,7 @@ type Command struct {
 	To   string
 }
 
-func (c Command) ParseFrom() error {
+func (c *Command) ParseFrom() error {
 	if strings.HasPrefix(c.Args[0], "FROM:") {
 		part := strings.TrimLeft(c.Args[0], "FROM:<")
 		c.From = strings.TrimRight(part, ">")
@@ -22,7 +22,7 @@ func (c Command) ParseFrom() error {
 	}
 }
 
-func (c Command) ParseTo() error {
+func (c *Command) ParseTo() error {
 	if strings.HasPrefix(c.Args[0], "TO:") {
 		part := strings.TrimLeft(c.Args[0], "TO:<")
 		part = strings.TrimRight(part, ">")
