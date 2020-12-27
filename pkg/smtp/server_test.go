@@ -9,7 +9,7 @@ import (
 
 var mimeBody = ""
 
-func TestServer_Start(t *testing.T) {
+func TestNone_MIME_Mail(t *testing.T) {
 	storage := NewTestStorage()
 	server := &Server{
 		Address:  "localhost",
@@ -34,22 +34,35 @@ func TestServer_Start(t *testing.T) {
 	assert.Equal(t, "receiver@test.com", mails[0].To[0])
 	assert.Equal(t, "Test", mails[0].Subject)
 	assert.Equal(t, "Test Message", string(mails[0].Body.Data))
+}
+
+func TestMiME_Mail(t *testing.T) {
+	storage := NewTestStorage()
+	server := &Server{
+		Address:  "localhost",
+		SMTPPort: 10246,
+		Storage:  storage,
+		Receiver: storage,
+	}
+	go func() {
+		server.Start()
+	}()
 	//"../../resources/mime_body.txt"
-	err = SendEmailFromFile(
+	err := SendEmailFromFile(
 		fmt.Sprintf("%s:%d", server.Address, server.SMTPPort),
 		"test <wso2iamtest@gmail.com>",
 		"subash@wso2.com",
 		"../../resources/mime_body.txt")
 	assert.NoError(t, err)
 
-	mails, err = storage.GetAll()
+	mails, err := storage.GetAll()
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(mails))
-	assert.Equal(t, "test <wso2iamtest@gmail.com>", mails[1].From)
-	assert.Equal(t, "subash@wso2.com", mails[1].To[0])
-	assert.Equal(t, "WSO2 - Password Reset", mails[1].Subject)
-	assert.Equal(t, "text/html; charset=UTF-8", mails[1].Body.ContentType)
-	assert.NotNil(t, mails[1].Body.Data)
+	assert.Equal(t, 1, len(mails))
+	assert.Equal(t, "test <wso2iamtest@gmail.com>", mails[0].From)
+	assert.Equal(t, "subash@wso2.com", mails[0].To[0])
+	assert.Equal(t, "WSO2 - Password Reset", mails[0].Subject)
+	assert.Equal(t, "text/html; charset=UTF-8", mails[0].Body.ContentType)
+	assert.NotNil(t, mails[0].Body.Data)
 }
 
 type TestStorage struct {
