@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github/ajanthan/smtp-go/pkg/storage"
+	"strings"
 	"testing"
 )
 
@@ -25,7 +26,7 @@ func TestNone_MIME_Mail(t *testing.T) {
 		"sender@test.com",
 		"receiver@test.com",
 		"Test",
-		"Test Message")
+		strings.NewReader("Test Message"))
 	assert.NoError(t, err)
 	mails, err := storage.GetAll()
 	assert.NoError(t, err)

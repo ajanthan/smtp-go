@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func SendEmail(address, sender, recipient, subject, message string) error {
+func SendEmail(address, sender, recipient, subject string, message io.Reader) error {
 	// Connect to the remote SMTP server.
 	c, err := smtp.Dial(address)
 	if err != nil {
@@ -68,7 +68,7 @@ func SendEmail(address, sender, recipient, subject, message string) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(wc, message)
+	_, err = io.Copy(wc, message)
 	if err != nil {
 		return err
 	}
