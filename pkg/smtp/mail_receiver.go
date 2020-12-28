@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github/ajanthan/smtp-go/pkg/storage"
-	"strings"
+	mail2 "net/mail"
 )
 
 type MailReceiver interface {
@@ -32,33 +32,43 @@ func (p PrinterReceiver) Receive(mail storage.Envelope) error {
 }
 
 func parseMail(body []byte) (storage.Mail, error) {
-	parts := bytes.SplitN(body, []byte("\r\n\r\n"), 2)
-	headerParts := strings.Split(string(parts[0]), "\r\n")
-	headers := make(map[string][]string)
-	for _, headerPart := range headerParts {
-		keyVal := strings.SplitN(headerPart, ":", 2)
-		for i, val := range keyVal[1:] {
-			val = strings.TrimLeft(val, " ")
-			keyVal[i+1] = val
-		}
-		headers[keyVal[0]] = keyVal[1:]
+	//parts := bytes.SplitN(body, []byte("\r\n\r\n"), 2)
+	//headerParts := strings.Split(string(parts[0]), "\r\n")
+	//headers := make(map[string][]string)
+	//for _, headerPart := range headerParts {
+	//	keyVal := strings.SplitN(headerPart, ":", 2)
+	//	for i, val := range keyVal[1:] {
+	//		val = strings.TrimLeft(val, " ")
+	//		keyVal[i+1] = val
+	//	}
+	//	headers[keyVal[0]] = keyVal[1:]
+	//}
+	reader := bytes.NewReader(body)
+	msg, err := mail2.ReadMessage(reader)
+	if err != nil {
+		return storage.Mail{}, err
 	}
 	mail := storage.Mail{
-		Subject:   headers["Subject"][0],
-		From:      headers["From"][0],
-		To:        headers["To"],
-		ReplyTo:   headers["Reply-To"][0],
-		MessageID: headers["Message-ID"][0],
-		Date:      headers["Date"][0],
+		Subject:   msg.Header.Get("Subject"),
+		From:      msg.Header.Get("From"),
+		To:        msg.Header["To"],
+		ReplyTo:   msg.Header.Get("Reply-To"),
+		MessageID: msg.Header.Get("Message-ID"),
+		Date:      msg.Header.Get("Date"),
 	}
-	_, isMIME := headers["MIME-Version"]
+	_, isMIME := msg.Header["Mime-Version"]
 	if isMIME {
 		mail.Body = storage.Body{
-			ContentType: headers["Content-Type"][0]}
+			ContentType: msg.Header.Get("Content-Type")}
 	} else {
 		mail.Body = storage.Body{}
 	}
-	mail.Body.Data = parts[1]
+	buff := new(bytes.Buffer)
+	_, err = buff.ReadFrom(msg.Body)
+	if err != nil {
+		return storage.Mail{}, err
+	}
+	mail.Body.Data = buff.Bytes()
 	return mail, nil
 
 }
