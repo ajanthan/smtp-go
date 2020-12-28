@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type MailAPI struct {
@@ -29,6 +30,12 @@ func (m MailAPI) HandleGetMailByID(context *gin.Context) {
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"Message": err.Error()})
 	}
-	contents := template.HTML(body.Data)
-	context.HTML(http.StatusOK, "mail.tmpl", gin.H{"Data": contents})
+	if strings.HasPrefix(body.ContentType, "text/html;") {
+		contents := template.HTML(body.Data)
+		context.Writer.Header().Set("Content-Type", "text/html")
+		context.Writer.WriteHeaderNow()
+		context.HTML(http.StatusOK, "mail.tmpl", gin.H{"Data": contents})
+	} else {
+		context.String(http.StatusOK, string(body.Data))
+	}
 }

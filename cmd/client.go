@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 	"github/ajanthan/smtp-go/pkg/smtp"
 	"github/ajanthan/smtp-go/pkg/storage"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ var sender string
 var subject string
 var recipient string
 var message string
+var file string
 
 func init() {
 	rootCmd.AddCommand(client)
@@ -24,7 +26,7 @@ func init() {
 	sendMail.Flags().StringVarP(&subject, "subject", "s", "", "subject of the email")
 	sendMail.Flags().StringVarP(&sender, "sender", "t", "", "email address of sender")
 	sendMail.Flags().StringVarP(&recipient, "recipient", "r", "", "email address of recipient")
-	sendMail.Flags().StringVarP(&message, "message", "m", "", "message")
+	sendMail.Flags().StringVarP(&file, "file", "f", "", "message in a file")
 }
 
 var client = &cobra.Command{
@@ -36,6 +38,14 @@ var sendMail = &cobra.Command{
 	Short: "client sends to email",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("sending an email...")
+		if file != "" {
+			data, err := ioutil.ReadFile(file)
+			if err != nil {
+				fmt.Printf("Unable to read the message from file: %s\n", err.Error())
+				os.Exit(1)
+			}
+			message = string(data)
+		}
 		err := smtp.SendEmail(serverAddress, sender, recipient, subject, message)
 		if err != nil {
 			fmt.Printf("Unable to send the email: %s\n", err.Error())

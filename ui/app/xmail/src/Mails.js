@@ -6,7 +6,7 @@ function Mails() {
   const [open,setOpen]=useState(false)
   const [mail,setMailContent]=useState({})
   useEffect(()=>{
-    fetch('../mail')
+    fetch('http://localhost:8085/mail')
         .then(response => response.json())
         .then(data => {
             let mailMap = new Map();
@@ -20,9 +20,19 @@ function Mails() {
           <List divided relaxed>
             {[...mails.values()].map((mail)=>
             <List.Item key={mail.ID} onClick={()=> {
-                fetch('../mail/'+mail.ID+'/content')
-                    .then(response => response.text())
-                    .then(data => setMailContent({Subject:mail.Subject,To:mail.To,From:mail.From,Date:mail.Date,Content:data}));
+                fetch('http://localhost:8085/mail/'+mail.ID+'/content')
+                    .then(response => {
+                        setMailContent({
+                        Subject:mail.Subject,
+                        To:mail.To,
+                        From:mail.From,
+                        Date:mail.Date,
+                        isHtml:response.headers.get('Content-Type').startsWith('text/html')});
+                        return response.text();
+                    })
+                    .then(
+                        data => setMailContent(prevState => ({...prevState,Content:data}))
+                     );
                 setOpen(true);
             }}>
                 <List.Icon name='mail' size='large' verticalAlign='middle' />
@@ -69,7 +79,11 @@ function Mails() {
                             </Table.Row>
                             <Table.Row>
                                 <Table.Cell/>
-                                <Table.Cell> <div dangerouslySetInnerHTML={{__html: mail.Content}}/></Table.Cell>
+                                <Table.Cell>
+                                    { mail.isHtml ?
+                                        <div dangerouslySetInnerHTML={{__html: mail.Content}}/> :
+                                        <pre>{mail.Content}</pre>}
+                                </Table.Cell>
                             </Table.Row>
                         </Table.Body>
                     </Table>
