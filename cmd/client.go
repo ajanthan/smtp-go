@@ -27,6 +27,7 @@ func init() {
 	sendMail.Flags().StringVarP(&sender, "sender", "t", "", "email address of sender")
 	sendMail.Flags().StringVarP(&recipient, "recipient", "r", "", "email address of recipient")
 	sendMail.Flags().StringVarP(&file, "file", "f", "", "message in a file")
+	sendMail.Flags().StringVarP(&message, "message", "m", "", "message inline")
 }
 
 var client = &cobra.Command{
