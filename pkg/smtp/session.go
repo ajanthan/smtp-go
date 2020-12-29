@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+//TODO: support AUTH and STARTTLS
 type Session struct {
 	conn                     *net.Conn
 	Conn                     *textproto.Conn

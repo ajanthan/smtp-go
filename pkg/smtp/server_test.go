@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 )
-
+//TODO: Add benchmark tests
 func TestNone_MIME_Mail(t *testing.T) {
 	testStorage := NewTestStorage()
 	server := &Server{
