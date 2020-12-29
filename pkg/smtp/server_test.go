@@ -8,15 +8,13 @@ import (
 	"testing"
 )
 
-var mimeBody = ""
-
 func TestNone_MIME_Mail(t *testing.T) {
-	storage := NewTestStorage()
+	testStorage := NewTestStorage()
 	server := &Server{
 		Address:  "localhost",
 		SMTPPort: 10245,
-		Storage:  storage,
-		Receiver: storage,
+		Storage:  testStorage,
+		Receiver: testStorage,
 	}
 	go func() {
 		server.Start()
@@ -28,7 +26,7 @@ func TestNone_MIME_Mail(t *testing.T) {
 		"Test",
 		strings.NewReader("Test Message\n"))
 	assert.NoError(t, err)
-	mails, err := storage.GetAll()
+	mails, err := testStorage.GetAll()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(mails))
 	assert.Equal(t, "sender@test.com", mails[0].From)
@@ -38,12 +36,12 @@ func TestNone_MIME_Mail(t *testing.T) {
 }
 
 func TestMiME_Mail(t *testing.T) {
-	storage := NewTestStorage()
+	testStorage := NewTestStorage()
 	server := &Server{
 		Address:  "localhost",
 		SMTPPort: 10246,
-		Storage:  storage,
-		Receiver: storage,
+		Storage:  testStorage,
+		Receiver: testStorage,
 	}
 	go func() {
 		server.Start()
@@ -56,7 +54,7 @@ func TestMiME_Mail(t *testing.T) {
 		"../../resources/mime_body.txt")
 	assert.NoError(t, err)
 
-	mails, err := storage.GetAll()
+	mails, err := testStorage.GetAll()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(mails))
 	assert.Equal(t, "test <wso2iamtest@gmail.com>", mails[0].From)
