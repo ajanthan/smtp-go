@@ -17,6 +17,7 @@ func (m MailAPI) HandleGetAllMails(context *gin.Context) {
 	mails, err := m.Storage.GetAll()
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"Message": err.Error()})
+		return
 	}
 	context.JSON(http.StatusOK, mails)
 }
@@ -25,6 +26,7 @@ func (m MailAPI) HandleGetMailByID(context *gin.Context) {
 	mailID, err := strconv.Atoi(mailIDStr)
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"Message": err.Error()})
+		return
 	}
 	body, err := m.Storage.GetBodyByMailID(uint(mailID))
 	if err != nil {
@@ -33,8 +35,6 @@ func (m MailAPI) HandleGetMailByID(context *gin.Context) {
 	}
 		if strings.HasPrefix(body.ContentType, "text/html;") {
 			contents := template.HTML(body.Data)
-			context.Writer.Header().Set("Content-Type", "text/html")
-			context.Writer.WriteHeaderNow()
 			context.HTML(http.StatusOK, "mail.tmpl", gin.H{"Data": contents})
 		} else {
 			context.String(http.StatusOK, string(body.Data))
