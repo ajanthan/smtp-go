@@ -33,7 +33,11 @@ var serverCmd = &cobra.Command{
 		}
 		fmt.Printf("starting a api server on %s:%d\n", ip, httpPort)
 		go func() {
-			httpServer.Start(apiHandler)
+			err := httpServer.Start(apiHandler)
+			if err != nil {
+				fmt.Println("Unable to initialize http server,", err.Error())
+				os.Exit(1)
+			}
 		}()
 		smtpServer := &smtp.Server{
 			Address:  ip,
