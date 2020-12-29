@@ -6,13 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"gorm.io/gorm"
+	"net/mail"
 	"strings"
 )
 
 type Envelope struct {
 	Sender    string
 	Recipient []string
-	Content   []byte
+	Content   *mail.Message
 }
 
 type Mail struct {

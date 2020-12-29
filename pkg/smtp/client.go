@@ -16,6 +16,10 @@ func SendEmail(address, sender, recipient, subject string, message io.Reader) er
 		return err
 	}
 
+	err = c.Hello("localhost")
+	if err != nil {
+		return err
+	}
 	// Set the sender and recipient first
 	if err := c.Mail(sender); err != nil {
 		return err
@@ -40,43 +44,10 @@ func SendEmail(address, sender, recipient, subject string, message io.Reader) er
 		To        Recipients
 		Body      Body
 	*/
-	err = sendHeader(wc, "Subject", subject)
+	err = sendMessageBody(wc, sender, recipient, subject, message)
 	if err != nil {
 		return err
 	}
-	err = sendHeader(wc, "From", sender)
-	if err != nil {
-		return err
-	}
-	err = sendHeader(wc, "Reply-To", sender)
-	if err != nil {
-		return err
-	}
-	err = sendHeader(wc, "To", recipient)
-	if err != nil {
-		return err
-	}
-	err = sendHeader(wc, "Date", time.Now().String())
-	if err != nil {
-		return err
-	}
-	err = sendHeader(wc, "Message-ID", strconv.Itoa(time.Now().Nanosecond()))
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(wc, "\r\n")
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(wc, message)
-	if err != nil {
-		return err
-	}
-	err = wc.Close()
-	if err != nil {
-		return err
-	}
-
 	// Send the QUIT command and close the connection.
 	err = c.Quit()
 	if err != nil {
@@ -132,6 +103,45 @@ func SendEmailFromFile(address, sender, recipient, file string) error {
 }
 func sendHeader(wc io.WriteCloser, key, val string) error {
 	_, err := fmt.Fprintf(wc, "%s:%s\r\n", key, val)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func sendMessageBody(wc io.WriteCloser, sender, recipient, subject string, message io.Reader) error {
+	err := sendHeader(wc, "Subject", subject)
+	if err != nil {
+		return err
+	}
+	err = sendHeader(wc, "From", sender)
+	if err != nil {
+		return err
+	}
+	err = sendHeader(wc, "Reply-To", sender)
+	if err != nil {
+		return err
+	}
+	err = sendHeader(wc, "To", recipient)
+	if err != nil {
+		return err
+	}
+	err = sendHeader(wc, "Date", time.Now().String())
+	if err != nil {
+		return err
+	}
+	err = sendHeader(wc, "Message-ID", strconv.Itoa(time.Now().Nanosecond()))
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(wc, "\r\n")
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(wc, message)
+	if err != nil {
+		return err
+	}
+	err = wc.Close()
 	if err != nil {
 		return err
 	}

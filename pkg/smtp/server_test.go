@@ -26,7 +26,7 @@ func TestNone_MIME_Mail(t *testing.T) {
 		"sender@test.com",
 		"receiver@test.com",
 		"Test",
-		strings.NewReader("Test Message"))
+		strings.NewReader("Test Message\n"))
 	assert.NoError(t, err)
 	mails, err := storage.GetAll()
 	assert.NoError(t, err)
@@ -34,7 +34,7 @@ func TestNone_MIME_Mail(t *testing.T) {
 	assert.Equal(t, "sender@test.com", mails[0].From)
 	assert.Equal(t, "receiver@test.com", mails[0].To[0])
 	assert.Equal(t, "Test", mails[0].Subject)
-	assert.Equal(t, "Test Message", string(mails[0].Body.Data))
+	assert.Equal(t, "Test Message\n", string(mails[0].Body.Data))
 }
 
 func TestMiME_Mail(t *testing.T) {
@@ -93,7 +93,7 @@ func (t *TestStorage) GetBodyByMailID(mailID uint) (storage.Body, error) {
 	return t.mails[mailID].Body, nil
 }
 func (t *TestStorage) Receive(mail storage.Envelope) error {
-	email, err := parseMail(mail.Content)
+	email, err := newMail(mail.Content)
 	if err != nil {
 		return err
 	}

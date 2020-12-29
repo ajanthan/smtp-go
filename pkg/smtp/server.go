@@ -5,6 +5,7 @@ import (
 	"github/ajanthan/smtp-go/pkg/storage"
 	"log"
 	"net"
+	"net/textproto"
 	"strconv"
 )
 
@@ -27,7 +28,8 @@ func (s Server) Start() {
 		}
 		go func() {
 			session := &Session{
-				Conn:   conn,
+				Conn:   textproto.NewConn(conn),
+				conn:   &conn,
 				Server: s.Address,
 			}
 			err := session.Start()

@@ -6,11 +6,14 @@ import (
 	"github/ajanthan/smtp-go/pkg/storage"
 	"log"
 	"net"
+	"net/mail"
+	"net/textproto"
 	"strings"
 )
 
 type Session struct {
-	Conn                     net.Conn
+	conn                     *net.Conn
+	Conn                     *textproto.Conn
 	Server                   string
 	Client                   string
 	IsHelloReceived          bool
@@ -64,34 +67,33 @@ func (s *Session) HandleRcpt(cmd Command) (string, error) {
 	}
 	return cmd.To, nil
 }
-func (s *Session) HandleData(Command) ([]byte, error) {
+func (s *Session) HandleData(Command) (*mail.Message, error) {
 	if !s.IsHelloReceived {
-		return []byte{}, NewOutOfOrderCmdError("DATA command before EHLO/HELLO command")
+		return nil, NewOutOfOrderCmdError("DATA command before EHLO/HELLO command")
 	} else if !s.IsMailReceived {
-		return []byte{}, NewOutOfOrderCmdError("DATA command before MAIL command")
+		return nil, NewOutOfOrderCmdError("DATA command before MAIL command")
 	} else if !s.IsAtLeastOneRcptReceived {
-		return []byte{}, NewOutOfOrderCmdError("DATA command before at least one RCPT command")
+		return nil, NewOutOfOrderCmdError("DATA command before at least one RCPT command")
 	}
 	message := "Start mail input; end with <CRLF>.<CRLF>"
 	if err := s.Reply(StatusContinue, message); err != nil {
-		return []byte{}, NewServerError(fmt.Sprintf("error sending hello %v", err))
+		return nil, NewServerError(fmt.Sprintf("error sending hello %v", err))
 	}
-	body, err := s.receiveBody()
+	msg, err := mail.ReadMessage(s.Conn.DotReader())
 	if err != nil {
-		return []byte{}, NewServerError(fmt.Sprintf("error reading body %v", err))
+		return nil, NewServerError(fmt.Sprintf("error reading mail body %v", err))
 	}
 	if err := s.Reply(StatusOk, "OK"); err != nil {
-		return []byte{}, NewServerError(fmt.Sprintf("error sending hello %v", err))
-
+		return nil, NewServerError(fmt.Sprintf("error sending ok %v", err))
 	}
-	return body, nil
+	return msg, nil
 }
 func (s *Session) HandleQuit() error {
 	message := fmt.Sprintf("%s service closing transmission channel", s.Server)
 	if err := s.Reply(StatusClose, message); err != nil {
 		return NewServerError(fmt.Sprintf("error sending hello %v", err))
 	}
-	s.Conn.Close()
+	_ = s.Conn.Close()
 	return nil
 }
 
@@ -100,7 +102,6 @@ func (s *Session) HandleReset() error {
 	s.IsAtLeastOneRcptReceived = false
 	if err := s.Reply(StatusOk, "OK"); err != nil {
 		return NewServerError(fmt.Sprintf("error sending hello %v", err))
-
 	}
 	return nil
 }
@@ -112,23 +113,18 @@ func (s *Session) HandleUnknownError(err error) {
 	}
 }
 func (s *Session) Reply(statusCode int, statusLine string) error {
-	if _, err := s.Conn.Write([]byte(fmt.Sprintf("%d %s\r\n", statusCode, statusLine))); err != nil {
+	if err := s.Conn.PrintfLine("%d %s", statusCode, statusLine); err != nil {
 		return err
 	}
 	return nil
 }
 func (s *Session) NextCMD() (Command, error) {
-	buff := make([]byte, 1024)
 	command := Command{}
-	if _, err := s.Conn.Read(buff); err != nil {
-		return Command{}, NewServerError(err.Error())
+	buff, err := s.Conn.ReadLine()
+	if err != nil {
+		return Command{}, NewSyntaxError(err.Error())
 	}
-
-	cmdIn := strings.Split(string(buff), "\r\n")
-	if len(cmdIn) != 2 {
-		return command, NewSyntaxError("invalid command format")
-	}
-	args := strings.Split(cmdIn[0], " ")
+	args := strings.Split(buff, " ")
 	command.Name = args[0]
 	command.Args = args[1:]
 	if command.Name == "MAIL" {
@@ -146,7 +142,7 @@ func (s *Session) NextCMD() (Command, error) {
 }
 
 func (s *Session) GetMail() (storage.Envelope, error) {
-	mail := storage.Envelope{}
+	envelope := storage.Envelope{}
 	// handling smtp commands
 	for {
 		cmd, err := s.NextCMD()
@@ -164,60 +160,43 @@ func (s *Session) GetMail() (storage.Envelope, error) {
 			} else if errors.As(err, &ServerError{}) {
 				return storage.Envelope{}, err
 			}
-			panic(fmt.Sprintf("error cmd %v", err))
+			panic(fmt.Sprintf("error cmd %s", err))
 		}
 		switch cmd.Name {
 		case "QUIT":
 			err := s.HandleQuit()
 			if err != nil {
-				return mail, err
+				return envelope, err
 			}
-			return mail, nil
-		case "EHLO", "HELLO":
+			return envelope, nil
+		case "EHLO", "HELO":
 			err := s.HandleHello(cmd)
 			if err != nil {
-				return mail, err
+				return envelope, err
 			}
 		case "MAIL":
-			mail.Sender, err = s.HandleMail(cmd)
+			envelope.Sender, err = s.HandleMail(cmd)
 			if err != nil {
-				return mail, err
+				return envelope, err
 			}
 		case "RCPT":
 			recipient, err := s.HandleRcpt(cmd)
 			if err != nil {
-				return mail, err
+				return envelope, err
 			}
-			mail.Recipient = append(mail.Recipient, recipient)
+			envelope.Recipient = append(envelope.Recipient, recipient)
 		case "DATA":
-			mail.Content, err = s.HandleData(cmd)
+			envelope.Content, err = s.HandleData(cmd)
 			if err != nil {
-				return mail, err
+				return envelope, err
 			}
 		case "RSET":
-			mail = storage.Envelope{}
+			envelope = storage.Envelope{}
 			err := s.HandleReset()
 			if err != nil {
-				return mail, err
+				return envelope, err
 			}
 		}
 	}
-	return mail, nil
-}
-func (s *Session) receiveBody() ([]byte, error) {
-	var message []byte
-	//reads first 1GB or until encounter first \r\n.\r\n
-	for i := 0; i < 1024*1024; i++ {
-		buff := make([]byte, 1024)
-		if _, err := s.Conn.Read(buff); err != nil {
-			return nil, err
-		}
-		if strings.Contains(string(buff), "\r\n.\r\n") {
-			line := strings.Split(string(buff), "\r\n.\r\n")
-			message = append(message, line[0]...)
-			return message, nil
-		}
-		message = append(message, buff...)
-	}
-	return message, NewServerError("large DATA, send less then 1 GB")
+	return envelope, nil
 }

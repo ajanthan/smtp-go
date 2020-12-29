@@ -1,11 +1,12 @@
 package smtp
 
 import (
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github/ajanthan/smtp-go/pkg/storage"
 	"net"
 	"net/smtp"
+	"net/textproto"
+	"strings"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func TestSession_HandleReset(t *testing.T) {
 		conn, err := ln.Accept()
 		assert.NoError(t, err)
 		session := &Session{
-			Conn:   conn,
+			Conn:   textproto.NewConn(conn),
 			Server: "localhost",
 		}
 		err = session.Start()
@@ -51,10 +52,10 @@ func TestSession_HandleReset(t *testing.T) {
 	assert.NoError(t, err)
 	wc, err := c.Data()
 	assert.NoError(t, err)
-	_, err = fmt.Fprint(wc, "Hi")
+
+	err = sendMessageBody(wc, "test1@test.com", "rtest1@test.com", "Test", strings.NewReader("Hi"))
 	assert.NoError(t, err)
-	err = wc.Close()
-	assert.NoError(t, err)
+
 	err = c.Quit()
 	assert.NoError(t, err)
 
