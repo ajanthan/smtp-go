@@ -33,10 +33,10 @@ func (m MailAPI) HandleGetMailByID(context *gin.Context) {
 		context.JSON(http.StatusInternalServerError, gin.H{"Message": err.Error()})
 		return
 	}
-		if strings.HasPrefix(body.ContentType, "text/html;") {
-			contents := template.HTML(body.Data)
-			context.HTML(http.StatusOK, "mail.tmpl", gin.H{"Data": contents})
-		} else {
-			context.String(http.StatusOK, string(body.Data))
-		}
+	if strings.HasPrefix(body.ContentType, "text/html;") {
+		contents := template.HTML(body.Data)
+		context.HTML(http.StatusOK, "mail.tmpl", gin.H{"Data": contents})
+	} else {
+		context.String(http.StatusOK, string(body.Data))
+	}
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"crypto/tls"
 	"fmt"
 	"github.com/spf13/cobra"
 	"github/ajanthan/smtp-go/pkg/api"
@@ -13,6 +14,8 @@ import (
 func init() {
 	rootCmd.AddCommand(serverCmd)
 	serverCmd.Flags().StringVarP(&ip, "address", "a", "127.0.0.1", "ip address of the smtp server")
+	serverCmd.Flags().StringVarP(&pubKey, "certificate", "c", "", "public certificate of the server")
+	serverCmd.Flags().StringVarP(&privateKey, "key", "k", "", "private key of the server")
 	serverCmd.Flags().IntVarP(&smtpPort, "smtpPort", "m", 10587, "smtpPort of the smtp server")
 	serverCmd.Flags().IntVarP(&httpPort, "httpPort", "u", 8085, "httpPort of the http server")
 }
@@ -47,6 +50,14 @@ var serverCmd = &cobra.Command{
 				Storage: store,
 			},
 		}
+		if pubKey != "" && privateKey != "" {
+			cert, err := tls.LoadX509KeyPair(pubKey, privateKey)
+			if err != nil {
+				fmt.Println("Unable load certificate,", err.Error())
+				os.Exit(1)
+			}
+			smtpServer.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
+		}
 		fmt.Printf("starting a smtp server on %s:%d\n", ip, smtpPort)
 		smtpServer.Start()
 	},
@@ -55,3 +66,5 @@ var serverCmd = &cobra.Command{
 var ip string
 var smtpPort int
 var httpPort int
+var pubKey string
+var privateKey string

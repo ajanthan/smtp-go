@@ -1,6 +1,7 @@
 package smtp
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"github/ajanthan/smtp-go/pkg/storage"
@@ -11,7 +12,7 @@ import (
 	"strings"
 )
 
-//TODO: support AUTH and STARTTLS
+//TODO: support AUTH
 type Session struct {
 	conn                     *net.Conn
 	Conn                     *textproto.Conn
@@ -20,10 +21,11 @@ type Session struct {
 	IsHelloReceived          bool
 	IsMailReceived           bool
 	IsAtLeastOneRcptReceived bool
+	TLSConfig                *tls.Config
 }
 
 func (s *Session) Start() error {
-	greetings := s.Server + " is READY"
+	greetings := s.Server + " ESMTP smtp-go"
 	if err := s.Reply(StatusReady, greetings); err != nil {
 		return NewServerError(fmt.Sprintf("error sending ready message %v", err))
 	}
@@ -36,8 +38,17 @@ func (s *Session) HandleHello(cmd Command) error {
 	}
 	s.Client = cmd.Args[0]
 	message := fmt.Sprintf("%s greets %s", s.Server, s.Client)
-	if err := s.Reply(StatusOk, message); err != nil {
-		return NewServerError(fmt.Sprintf("error sending hello %v", err))
+	if s.TLSConfig != nil {
+		if err := s.MultiReply(StatusOk, message); err != nil {
+			return NewServerError(fmt.Sprintf("error sending ok %v", err))
+		}
+		if err := s.Reply(StatusOk, "STARTTLS"); err != nil {
+			return NewServerError(fmt.Sprintf("error sending ok %v", err))
+		}
+	} else {
+		if err := s.Reply(StatusOk, message); err != nil {
+			return NewServerError(fmt.Sprintf("error sending ok %v", err))
+		}
 	}
 	s.IsHelloReceived = true
 	return nil
@@ -107,6 +118,18 @@ func (s *Session) HandleReset() error {
 	return nil
 }
 
+func (s *Session) HandleStartTLS() error {
+	if err := s.Reply(StatusReady, "Go ahead"); err != nil {
+		return NewServerError(fmt.Sprintf("error sending hello %v", err))
+	}
+	s.IsHelloReceived = false
+	s.IsAtLeastOneRcptReceived = false
+	s.IsMailReceived = false
+	tlsConn := tls.Server(*s.conn, s.TLSConfig)
+	s.Conn = textproto.NewConn(tlsConn)
+	return nil
+}
+
 func (s *Session) HandleUnknownError(err error) {
 	message := fmt.Sprintf("unknown server error:%s", err.Error())
 	if err := s.Reply(StatusUnknownError, message); err != nil {
@@ -115,6 +138,12 @@ func (s *Session) HandleUnknownError(err error) {
 }
 func (s *Session) Reply(statusCode int, statusLine string) error {
 	if err := s.Conn.PrintfLine("%d %s", statusCode, statusLine); err != nil {
+		return err
+	}
+	return nil
+}
+func (s *Session) MultiReply(statusCode int, statusLine string) error {
+	if err := s.Conn.PrintfLine("%d-%s", statusCode, statusLine); err != nil {
 		return err
 	}
 	return nil
@@ -196,6 +225,18 @@ func (s *Session) GetMail() (storage.Envelope, error) {
 			err := s.HandleReset()
 			if err != nil {
 				return envelope, err
+			}
+		case "STARTTLS":
+			if s.TLSConfig != nil {
+				envelope = storage.Envelope{}
+				err := s.HandleStartTLS()
+				if err != nil {
+					return envelope, err
+				}
+			} else {
+				if err := s.Reply(StatusCommandNotImplemented, fmt.Sprintf("%s is not supported", cmd.Name)); err != nil {
+					return envelope, NewServerError(fmt.Sprintf("error sending reply %v", err))
+				}
 			}
 		}
 	}

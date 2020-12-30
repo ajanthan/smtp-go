@@ -47,7 +47,7 @@ func (r *Recipients) Scan(input interface{}) error {
 
 type Body struct {
 	gorm.Model
-	MailID      uint
+	MailID uint
 	//TODO: Use io.Reader
 	Data        []byte
 	ContentType string
