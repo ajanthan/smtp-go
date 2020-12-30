@@ -83,7 +83,7 @@ func TestSession_HandleStartTLS(t *testing.T) {
 	clientTLSConfig.RootCAs = caPool
 
 	mailChan := make(chan storage.Envelope)
-	address := "localhost:20246"
+	address := "localhost:20247"
 	go func() {
 
 		ln, err := net.Listen("tcp", address)
