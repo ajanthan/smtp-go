@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github/ajanthan/smtp-go/pkg/storage"
 	"log"
 	"net"
 	"net/mail"
@@ -14,7 +13,7 @@ import (
 
 const (
 	StartTLS = "STARTTLS"
-	Auth     = "AUTH"
+	Auth     = "AUTH PLAIN LOGIN MD5-CRAM"
 )
 
 //TODO: support AUTH
@@ -30,7 +29,7 @@ type Session struct {
 	IsTLSConn                bool
 	TLSConfig                *tls.Config
 	Extensions               []string
-	Auth                     *AuthenticationService
+	Auth                     AuthenticationService
 	Secure                   bool
 }
 
@@ -72,11 +71,6 @@ func (s *Session) HandleHello(cmd Command) error {
 	return nil
 }
 func (s *Session) HandleMail(cmd Command) (string, error) {
-	err := s.checkAuthRequired()
-	if err != nil {
-		return "", err
-	}
-
 	if !s.IsHelloReceived {
 		return "", NewOutOfOrderCmdError("MAIL command before EHLO/HELLO command")
 	} else if s.IsMailReceived {
@@ -89,10 +83,6 @@ func (s *Session) HandleMail(cmd Command) (string, error) {
 	return cmd.From, nil
 }
 func (s *Session) HandleRcpt(cmd Command) (string, error) {
-	err := s.checkAuthRequired()
-	if err != nil {
-		return "", err
-	}
 	if !s.IsHelloReceived {
 		return "", NewOutOfOrderCmdError("RCPT command before EHLO/HELLO command")
 	} else if !s.IsMailReceived {
@@ -107,10 +97,6 @@ func (s *Session) HandleRcpt(cmd Command) (string, error) {
 	return cmd.To, nil
 }
 func (s *Session) HandleData(Command) (*mail.Message, error) {
-	err := s.checkAuthRequired()
-	if err != nil {
-		return nil, err
-	}
 	if !s.IsHelloReceived {
 		return nil, NewOutOfOrderCmdError("DATA command before EHLO/HELLO command")
 	} else if !s.IsMailReceived {
@@ -203,8 +189,8 @@ func (s *Session) NextCMD() (Command, error) {
 	return command, nil
 }
 
-func (s *Session) GetMail() (*storage.Envelope, error) {
-	envelope := storage.NewEnvelope(s.Server)
+func (s *Session) GetMail() (*Envelope, error) {
+	envelope := NewEnvelope(s.Server)
 	// handling smtp commands
 	for {
 		cmd, err := s.NextCMD()
@@ -237,30 +223,48 @@ func (s *Session) GetMail() (*storage.Envelope, error) {
 				return nil, err
 			}
 		case "MAIL":
-			envelope.Sender, err = s.HandleMail(cmd)
+			isRequired, err := s.checkAuthRequired()
 			if err != nil {
 				return nil, err
+			}
+			if !isRequired {
+				envelope.Sender, err = s.HandleMail(cmd)
+				if err != nil {
+					return nil, err
+				}
 			}
 		case "RCPT":
-			recipient, err := s.HandleRcpt(cmd)
+			isRequired, err := s.checkAuthRequired()
 			if err != nil {
 				return nil, err
 			}
-			envelope.Recipient = append(envelope.Recipient, recipient)
+			if !isRequired {
+				recipient, err := s.HandleRcpt(cmd)
+				if err != nil {
+					return nil, err
+				}
+				envelope.Recipient = append(envelope.Recipient, recipient)
+			}
 		case "DATA":
-			envelope.Content, err = s.HandleData(cmd)
+			isRequired, err := s.checkAuthRequired()
 			if err != nil {
 				return nil, err
+			}
+			if !isRequired {
+				envelope.Content, err = s.HandleData(cmd)
+				if err != nil {
+					return nil, err
+				}
 			}
 		case "RSET":
-			envelope = storage.NewEnvelope(s.Server)
+			envelope = NewEnvelope(s.Server)
 			err := s.HandleReset()
 			if err != nil {
 				return nil, err
 			}
 		case "STARTTLS":
 			if s.TLSConfig != nil {
-				envelope = storage.NewEnvelope(s.Server)
+				envelope = NewEnvelope(s.Server)
 				err := s.HandleStartTLS()
 				if err != nil {
 					return nil, err
@@ -312,7 +316,7 @@ func (s *Session) HandleAuth(args []string, messageID string) error {
 				}
 				cred = cmd.Name
 			}
-			if err := HandlePlainAuth(cred, *s.Auth); err != nil {
+			if err := HandlePlainAuth(cred, s.Auth); err != nil {
 				return s.handleAuthError(err)
 			}
 			if err := s.Reply(StatusAuthSuccess, "Authentication successful"); err != nil {
@@ -334,7 +338,7 @@ func (s *Session) HandleAuth(args []string, messageID string) error {
 			if err != nil {
 				return err
 			}
-			if err := HandleLoginAuth(username, password, *s.Auth); err != nil {
+			if err := HandleLoginAuth(username, password, s.Auth); err != nil {
 				return s.handleAuthError(err)
 			}
 			if err := s.Reply(StatusAuthSuccess, "Authentication successful"); err != nil {
@@ -350,7 +354,7 @@ func (s *Session) HandleAuth(args []string, messageID string) error {
 			if err != nil {
 				return NewServerError(fmt.Sprintf("error receiving PLAIN credential %v", err))
 			}
-			if err := HandleMD5CRAMAuth(cmd.Name, []byte(messageID), *s.Auth); err != nil {
+			if err := HandleMD5CRAMAuth(cmd.Name, []byte(messageID), s.Auth); err != nil {
 				return s.handleAuthError(err)
 			}
 			if err := s.Reply(StatusAuthSuccess, "Authentication successful"); err != nil {
@@ -389,12 +393,12 @@ func (s *Session) handleAuthError(err error) error {
 	return err
 
 }
-func (s *Session) checkAuthRequired() error {
+func (s *Session) checkAuthRequired() (bool, error) {
 	if s.Secure && !s.IsAuthenticated {
 		if err := s.Reply(StatusAuthRequired, "Authentication required"); err != nil {
-			return NewServerError(fmt.Sprintf("error sending reply %v", err))
+			return true, NewServerError(fmt.Sprintf("error sending reply %v", err))
 		}
-		return NewAuthRequiredError("Authentication required")
+		return true, nil
 	}
-	return nil
+	return false, nil
 }

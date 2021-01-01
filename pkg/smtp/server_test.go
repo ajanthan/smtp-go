@@ -1,10 +1,11 @@
 package smtp
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github/ajanthan/smtp-go/pkg/storage"
+	"net/mail"
 	"strings"
 	"testing"
 )
@@ -15,7 +16,6 @@ func TestNone_MIME_Mail(t *testing.T) {
 	server := &Server{
 		Address:  "localhost",
 		SMTPPort: 10245,
-		Storage:  testStorage,
 		Receiver: testStorage,
 	}
 	go func() {
@@ -31,10 +31,13 @@ func TestNone_MIME_Mail(t *testing.T) {
 	mails, err := testStorage.GetAll()
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(mails))
-	assert.Equal(t, "sender@test.com", mails[0].From)
-	assert.Equal(t, "receiver@test.com", mails[0].To[0])
-	assert.Equal(t, "Test", mails[0].Subject)
-	assert.Equal(t, "Test Message\n", string(mails[0].Body.Data))
+	assert.Equal(t, "sender@test.com", mails[0].Sender)
+	assert.Equal(t, "receiver@test.com", mails[0].Recipient[0])
+	assert.Equal(t, "Test", mails[0].Content.Header.Get("Subject"))
+	buffer := bytes.Buffer{}
+	_, err = buffer.ReadFrom(mails[0].Content.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "Test Message\n", buffer.String())
 }
 
 func TestMiME_Mail(t *testing.T) {
@@ -42,7 +45,6 @@ func TestMiME_Mail(t *testing.T) {
 	server := &Server{
 		Address:  "localhost",
 		SMTPPort: 10246,
-		Storage:  testStorage,
 		Receiver: testStorage,
 	}
 	go func() {
@@ -51,7 +53,7 @@ func TestMiME_Mail(t *testing.T) {
 	//"../../resources/mime_body.txt"
 	err := SendEmailFromFile(
 		fmt.Sprintf("%s:%d", server.Address, server.SMTPPort),
-		"test <wso2iamtest@gmail.com>",
+		"wso2iamtest@gmail.com",
 		"subash@wso2.com",
 		"../../resources/mime_body.txt")
 	require.NoError(t, err)
@@ -59,43 +61,39 @@ func TestMiME_Mail(t *testing.T) {
 	mails, err := testStorage.GetAll()
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(mails))
-	assert.Equal(t, "test <wso2iamtest@gmail.com>", mails[0].From)
-	assert.Equal(t, "subash@wso2.com", mails[0].To[0])
-	assert.Equal(t, "WSO2 - Password Reset", mails[0].Subject)
-	assert.Equal(t, "text/html; charset=UTF-8", mails[0].Body.ContentType)
-	assert.NotNil(t, mails[0].Body.Data)
+	assert.Equal(t, "wso2iamtest@gmail.com", mails[0].Sender)
+	assert.Equal(t, "subash@wso2.com", mails[0].Recipient[0])
+	assert.Equal(t, "WSO2 - Password Reset", mails[0].Content.Header.Get("Subject"))
+	assert.Equal(t, "text/html; charset=UTF-8", mails[0].Content.Header.Get("Content-Type"))
+	assert.NotNil(t, mails[0].Content)
 }
 
 type TestStorage struct {
-	mails     map[uint]storage.Mail
+	mails     map[uint]Envelope
 	idCounter uint
 }
 
 func NewTestStorage() *TestStorage {
-	mails := make(map[uint]storage.Mail)
+	mails := make(map[uint]Envelope)
 	return &TestStorage{
 		mails: mails,
 	}
 }
-func (t *TestStorage) Persist(mail storage.Mail) error {
+func (t *TestStorage) Persist(mail Envelope) error {
 	t.mails[t.idCounter] = mail
 	t.idCounter++
 	return nil
 }
-func (t *TestStorage) GetAll() ([]storage.Mail, error) {
-	var mails []storage.Mail
+func (t *TestStorage) GetAll() ([]Envelope, error) {
+	var mails []Envelope
 	for _, mail := range t.mails {
 		mails = append(mails, mail)
 	}
 	return mails, nil
 }
-func (t *TestStorage) GetBodyByMailID(mailID uint) (storage.Body, error) {
-	return t.mails[mailID].Body, nil
+func (t *TestStorage) GetBodyByMailID(mailID uint) (mail.Message, error) {
+	return *t.mails[mailID].Content, nil
 }
-func (t *TestStorage) Receive(mail *storage.Envelope) error {
-	email, err := newMail(mail.Content)
-	if err != nil {
-		return err
-	}
-	return t.Persist(email)
+func (t *TestStorage) Receive(mail *Envelope) error {
+	return t.Persist(*mail)
 }

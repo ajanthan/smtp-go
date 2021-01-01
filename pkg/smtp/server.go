@@ -3,7 +3,6 @@ package smtp
 import (
 	"crypto/tls"
 	"fmt"
-	"github/ajanthan/smtp-go/pkg/storage"
 	"log"
 	"net"
 	"net/textproto"
@@ -11,11 +10,12 @@ import (
 )
 
 type Server struct {
-	Address   string
-	SMTPPort  int
-	Receiver  MailReceiver
-	Storage   storage.Storage
-	TLSConfig *tls.Config
+	Address     string
+	SMTPPort    int
+	Receiver    MailReceiver
+	TLSConfig   *tls.Config
+	AuthService AuthenticationService
+	Secure      bool
 }
 
 func (s Server) Start() {
@@ -33,9 +33,15 @@ func (s Server) Start() {
 				Conn:   textproto.NewConn(conn),
 				conn:   &conn,
 				Server: s.Address,
+				Secure: s.Secure,
+				Auth:   s.AuthService,
 			}
 			if s.TLSConfig != nil {
 				session.TLSConfig = s.TLSConfig
+				session.Extensions = append(session.Extensions, StartTLS)
+			}
+			if s.Secure {
+				session.Extensions = append(session.Extensions, Auth)
 			}
 			err := session.Start()
 			if err != nil {

@@ -18,7 +18,7 @@ func (s Server) Start(api *api.MailAPI) error {
 
 	//CORS middleware configuration
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"http://localhost:3000"}
+	corsConfig.AllowOrigins = []string{"http://localhost", "http://127.0.0.1"}
 	router.Use(cors.New(corsConfig))
 
 	router.LoadHTMLGlob("templates/*")

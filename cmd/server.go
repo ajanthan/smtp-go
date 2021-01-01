@@ -18,6 +18,7 @@ func init() {
 	serverCmd.Flags().StringVarP(&privateKey, "key", "k", "", "private key of the server")
 	serverCmd.Flags().IntVarP(&smtpPort, "smtpPort", "m", 10587, "smtpPort of the smtp server")
 	serverCmd.Flags().IntVarP(&httpPort, "httpPort", "u", 8085, "httpPort of the http server")
+	serverCmd.Flags().BoolVarP(&secured, "secured", "s", true, "secure the SMTP communication")
 }
 
 var serverCmd = &cobra.Command{
@@ -45,8 +46,7 @@ var serverCmd = &cobra.Command{
 		smtpServer := &smtp.Server{
 			Address:  ip,
 			SMTPPort: smtpPort,
-			Storage:  *store,
-			Receiver: &smtp.DBReceiver{
+			Receiver: &storage.DBReceiver{
 				Storage: store,
 			},
 		}
@@ -58,6 +58,10 @@ var serverCmd = &cobra.Command{
 			}
 			smtpServer.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
 		}
+		if secured {
+			smtpServer.AuthService = store
+			smtpServer.Secure = secured
+		}
 		fmt.Printf("starting a smtp server on %s:%d\n", ip, smtpPort)
 		smtpServer.Start()
 	},
@@ -68,3 +72,4 @@ var smtpPort int
 var httpPort int
 var pubKey string
 var privateKey string
+var secured bool

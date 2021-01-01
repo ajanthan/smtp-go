@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github/ajanthan/smtp-go/pkg/storage"
 	"io/ioutil"
 	"net"
 	"net/smtp"
@@ -18,7 +17,7 @@ import (
 )
 
 func TestSession_HandleReset(t *testing.T) {
-	mailChan := make(chan *storage.Envelope)
+	mailChan := make(chan *Envelope)
 	address := "localhost:20246"
 	go func() {
 		ln, err := net.Listen("tcp", address)
@@ -75,7 +74,7 @@ func TestSession_HandleStartTLS(t *testing.T) {
 	serverTLSConfig, clientTLSConfig, err := getTestTLSConfig()
 	require.NoError(t, err)
 
-	mailChan := make(chan *storage.Envelope)
+	mailChan := make(chan *Envelope)
 	address := "localhost:20247"
 	go startTesTLStServer(t, address, serverTLSConfig, mailChan, []string{}, nil, false)
 
@@ -125,7 +124,7 @@ func TestSession_HandleAuth(t *testing.T) {
 	serverTLSConfig, clientTLSConfig, err := getTestTLSConfig()
 	require.NoError(t, err)
 
-	mailChan := make(chan *storage.Envelope)
+	mailChan := make(chan *Envelope)
 	address := "localhost:20248"
 	go startTesTLStServer(t, address, serverTLSConfig, mailChan, []string{"AUTH PLAIN LOGIN MD5-CRAM"}, testAuth, true)
 
@@ -158,6 +157,19 @@ func TestSession_HandleAuth(t *testing.T) {
 				//Expect error
 				err = c.Mail("test0@test.com")
 				require.Error(t, err)
+				err = c.Quit()
+				require.NoError(t, err)
+				<-mailChan
+				return false
+			},
+		},
+		{
+			name: "wrong credential",
+			checkAuth: func(t *testing.T, c *smtp.Client) bool {
+				plainAuth := smtp.PlainAuth("", username, "pawn", "localhost")
+				err = c.Auth(plainAuth)
+				require.Error(t, err)
+				<-mailChan
 				return false
 			},
 		},
@@ -196,7 +208,7 @@ func TestSession_HandleAuth(t *testing.T) {
 	}
 }
 
-func startTesTLStServer(t *testing.T, address string, serverTLSConfig *tls.Config, mailChan chan *storage.Envelope, exts []string, auth AuthenticationService, isSecure bool) {
+func startTesTLStServer(t *testing.T, address string, serverTLSConfig *tls.Config, mailChan chan *Envelope, exts []string, auth AuthenticationService, isSecure bool) {
 	ln, err := net.Listen("tcp", address)
 	assert.NoError(t, err)
 	for {
@@ -209,7 +221,7 @@ func startTesTLStServer(t *testing.T, address string, serverTLSConfig *tls.Confi
 			Server:     "localhost",
 			TLSConfig:  serverTLSConfig,
 			Extensions: append(exts, StartTLS),
-			Auth:       &auth,
+			Auth:       auth,
 			Secure:     isSecure,
 		}
 		err = session.Start()
@@ -222,7 +234,7 @@ func startTesTLStServer(t *testing.T, address string, serverTLSConfig *tls.Confi
 		mail, err := session.GetMail()
 		if err != nil {
 			session.HandleUnknownError(err)
-			_ = ln.Close()
+			assert.NoError(t, err)
 		}
 		mailChan <- mail
 	}
