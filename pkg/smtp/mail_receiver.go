@@ -8,13 +8,13 @@ import (
 )
 
 type MailReceiver interface {
-	Receive(mail storage.Envelope) error
+	Receive(mail *storage.Envelope) error
 }
 
 type PrinterReceiver struct {
 }
 
-func (p PrinterReceiver) Receive(mail storage.Envelope) error {
+func (p PrinterReceiver) Receive(mail *storage.Envelope) error {
 	fmt.Println("****************************************************************************")
 	fmt.Printf("From: %s\n", mail.Sender)
 	fmt.Print("To:")
@@ -61,7 +61,7 @@ type DBReceiver struct {
 	Storage *storage.SQLiteStorage
 }
 
-func (p *DBReceiver) Receive(mail storage.Envelope) error {
+func (p *DBReceiver) Receive(mail *storage.Envelope) error {
 	email, err := newMail(mail.Content)
 	if err != nil {
 		fmt.Printf(err.Error())

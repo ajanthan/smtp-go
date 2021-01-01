@@ -91,7 +91,7 @@ func (t *TestStorage) GetAll() ([]storage.Mail, error) {
 func (t *TestStorage) GetBodyByMailID(mailID uint) (storage.Body, error) {
 	return t.mails[mailID].Body, nil
 }
-func (t *TestStorage) Receive(mail storage.Envelope) error {
+func (t *TestStorage) Receive(mail *storage.Envelope) error {
 	email, err := newMail(mail.Content)
 	if err != nil {
 		return err
