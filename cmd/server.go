@@ -18,7 +18,7 @@ func init() {
 	serverCmd.Flags().StringVarP(&privateKey, "key", "k", "", "private key of the server")
 	serverCmd.Flags().IntVarP(&smtpPort, "smtpPort", "m", 10587, "smtpPort of the smtp server")
 	serverCmd.Flags().IntVarP(&httpPort, "httpPort", "u", 8085, "httpPort of the http server")
-	serverCmd.Flags().BoolVarP(&secured, "secured", "s", true, "secure the SMTP communication")
+	serverCmd.Flags().BoolVarP(&secured, "secured", "s", false, "secure the SMTP communication")
 }
 
 var serverCmd = &cobra.Command{
