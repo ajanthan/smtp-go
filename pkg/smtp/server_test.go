@@ -3,6 +3,7 @@ package smtp
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github/ajanthan/smtp-go/pkg/storage"
 	"strings"
 	"testing"
@@ -26,9 +27,9 @@ func TestNone_MIME_Mail(t *testing.T) {
 		"receiver@test.com",
 		"Test",
 		strings.NewReader("Test Message\n"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	mails, err := testStorage.GetAll()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1, len(mails))
 	assert.Equal(t, "sender@test.com", mails[0].From)
 	assert.Equal(t, "receiver@test.com", mails[0].To[0])
@@ -53,10 +54,10 @@ func TestMiME_Mail(t *testing.T) {
 		"test <wso2iamtest@gmail.com>",
 		"subash@wso2.com",
 		"../../resources/mime_body.txt")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	mails, err := testStorage.GetAll()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1, len(mails))
 	assert.Equal(t, "test <wso2iamtest@gmail.com>", mails[0].From)
 	assert.Equal(t, "subash@wso2.com", mails[0].To[0])

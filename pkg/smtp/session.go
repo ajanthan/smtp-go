@@ -362,6 +362,7 @@ func (s *Session) HandleAuth(args []string, messageID string) error {
 			return NewServerError(fmt.Sprintf("error sending reply %v", err))
 		}
 	}
+	s.IsAuthenticated = true
 	return nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github/ajanthan/smtp-go/pkg/storage"
 	"io/ioutil"
 	"net"
@@ -45,25 +46,25 @@ func TestSession_HandleReset(t *testing.T) {
 	}()
 
 	c, err := smtp.Dial(address)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = c.Mail("test0@test.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = c.Rcpt("rtest0@test.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = c.Reset()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = c.Mail("test1@test.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = c.Rcpt("rtest1@test.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	wc, err := c.Data()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = sendMessageBody(wc, "test1@test.com", "rtest1@test.com", "Test", strings.NewReader("Hi"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = c.Quit()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	mail := <-mailChan
 	assert.Equal(t, "test1@test.com", mail.Sender)
@@ -72,46 +73,179 @@ func TestSession_HandleReset(t *testing.T) {
 
 func TestSession_HandleStartTLS(t *testing.T) {
 	serverTLSConfig, clientTLSConfig, err := getTestTLSConfig()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	mailChan := make(chan *storage.Envelope)
 	address := "localhost:20247"
-	go startTesTLStServer(t, address, serverTLSConfig, mailChan, []string{}, nil)
+	go startTesTLStServer(t, address, serverTLSConfig, mailChan, []string{}, nil, false)
 
 	c, err := smtp.Dial(address)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = c.Hello("localhost")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	isTLSSupported, _ := c.Extension("STARTTLS")
 	assert.True(t, isTLSSupported)
 
 	err = c.StartTLS(clientTLSConfig)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = c.Mail("test0@test.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = c.Rcpt("rtest0@test.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = c.Reset()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = c.Mail("test1@test.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = c.Rcpt("rtest1@test.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	wc, err := c.Data()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = sendMessageBody(wc, "test1@test.com", "rtest1@test.com", "Test", strings.NewReader("Hi"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = c.Quit()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	mail := <-mailChan
 	assert.Equal(t, "test1@test.com", mail.Sender)
 	assert.Equal(t, "rtest1@test.com", mail.Recipient[0])
+}
+
+func TestSession_HandleAuth(t *testing.T) {
+	testAuth := NewTestAuthService()
+	username := "test"
+	password := []byte("test@123")
+	err := testAuth.AddUser(username, password)
+	require.NoError(t, err)
+
+	serverTLSConfig, clientTLSConfig, err := getTestTLSConfig()
+	require.NoError(t, err)
+
+	mailChan := make(chan *storage.Envelope)
+	address := "localhost:20248"
+	go startTesTLStServer(t, address, serverTLSConfig, mailChan, []string{"AUTH PLAIN LOGIN MD5-CRAM"}, testAuth, true)
+
+	testCases := []struct {
+		name      string
+		checkAuth func(t *testing.T, c *smtp.Client) bool
+	}{
+		{
+			name: "Plain",
+			checkAuth: func(t *testing.T, c *smtp.Client) bool {
+				plainAuth := smtp.PlainAuth("", username, string(password), "localhost")
+				err = c.Auth(plainAuth)
+				require.NoError(t, err)
+				return true
+			},
+		},
+		{
+			name: "MD5-CRAM",
+			checkAuth: func(t *testing.T, c *smtp.Client) bool {
+				md5CRAMAuth := smtp.CRAMMD5Auth(username, string(password))
+				err = c.Auth(md5CRAMAuth)
+				require.NoError(t, err)
+				return true
+			},
+		},
+		{
+			name: "Negative",
+			checkAuth: func(t *testing.T, c *smtp.Client) bool {
+				//No auth
+				//Expect error
+				err = c.Mail("test0@test.com")
+				require.Error(t, err)
+				return false
+			},
+		},
+	}
+	for _, test := range testCases {
+		c, err := smtp.Dial(address)
+		require.NoError(t, err)
+
+		err = c.Hello("localhost")
+		require.NoError(t, err)
+
+		err = c.StartTLS(clientTLSConfig)
+		require.NoError(t, err)
+
+		isAuthSupported, _ := c.Extension("AUTH")
+		assert.True(t, isAuthSupported)
+
+		if test.checkAuth(t, c) {
+			err = c.Mail("test0@test.com")
+			require.NoError(t, err)
+			err = c.Rcpt("rtest0@test.com")
+			require.NoError(t, err)
+			wc, err := c.Data()
+			require.NoError(t, err)
+
+			err = sendMessageBody(wc, "test0@test.com", "rtest0@test.com", "Test", strings.NewReader("Hi"))
+			require.NoError(t, err)
+
+			err = c.Quit()
+			require.NoError(t, err)
+
+			mail := <-mailChan
+			assert.Equal(t, "test0@test.com", mail.Sender)
+			assert.Equal(t, "rtest0@test.com", mail.Recipient[0])
+		}
+	}
+}
+
+func startTesTLStServer(t *testing.T, address string, serverTLSConfig *tls.Config, mailChan chan *storage.Envelope, exts []string, auth AuthenticationService, isSecure bool) {
+	ln, err := net.Listen("tcp", address)
+	assert.NoError(t, err)
+	for {
+		conn, err := ln.Accept()
+		assert.NoError(t, err)
+
+		session := &Session{
+			conn:       &conn,
+			Conn:       textproto.NewConn(conn),
+			Server:     "localhost",
+			TLSConfig:  serverTLSConfig,
+			Extensions: append(exts, StartTLS),
+			Auth:       &auth,
+			Secure:     isSecure,
+		}
+		err = session.Start()
+		if err != nil {
+			session.HandleUnknownError(err)
+			assert.Fail(t, err.Error())
+			close(mailChan)
+		}
+
+		mail, err := session.GetMail()
+		if err != nil {
+			session.HandleUnknownError(err)
+			_ = ln.Close()
+		}
+		mailChan <- mail
+	}
+}
+
+func getTestTLSConfig() (*tls.Config, *tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair("../../resources/localhost.crt", "../../resources/localhost.pkcs8")
+	if err != nil {
+		return nil, nil, err
+	}
+	serverTLSConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
+
+	caPool := x509.NewCertPool()
+	pem, err := ioutil.ReadFile("../../resources/localhost.crt")
+	if err != nil {
+		return nil, nil, err
+	}
+	caPool.AppendCertsFromPEM(pem)
+	clientTLSConfig := serverTLSConfig.Clone()
+	clientTLSConfig.ServerName = "localhost"
+	clientTLSConfig.RootCAs = caPool
+
+	return serverTLSConfig, clientTLSConfig, nil
 }
 
 type TestAuthService struct {
@@ -163,119 +297,4 @@ func (auth *TestAuthService) AddUser(username string, password []byte) error {
 	}
 	auth.userDB[username] = password
 	return nil
-}
-func getTestTLSConfig() (*tls.Config, *tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair("../../resources/localhost.crt", "../../resources/localhost.pkcs8")
-	if err != nil {
-		return nil, nil, err
-	}
-	serverTLSConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
-
-	caPool := x509.NewCertPool()
-	pem, err := ioutil.ReadFile("../../resources/localhost.crt")
-	if err != nil {
-		return nil, nil, err
-	}
-	caPool.AppendCertsFromPEM(pem)
-	clientTLSConfig := serverTLSConfig.Clone()
-	clientTLSConfig.ServerName = "localhost"
-	clientTLSConfig.RootCAs = caPool
-
-	return serverTLSConfig, clientTLSConfig, nil
-}
-func TestSession_HandleAuth(t *testing.T) {
-	testAuth := NewTestAuthService()
-	username := "test"
-	password := []byte("test@123")
-	err := testAuth.AddUser(username, password)
-	assert.NoError(t, err)
-
-	serverTLSConfig, clientTLSConfig, err := getTestTLSConfig()
-	assert.NoError(t, err)
-
-	mailChan := make(chan *storage.Envelope)
-	address := "localhost:20248"
-	go startTesTLStServer(t, address, serverTLSConfig, mailChan, []string{"AUTH PLAIN LOGIN MD5-CRAM"}, testAuth)
-
-	plainAuth := smtp.PlainAuth("", username, string(password), "localhost")
-	md5CRAMAuth := smtp.CRAMMD5Auth(username, string(password))
-
-	testCases := []struct {
-		name string
-		auth smtp.Auth
-	}{
-		{
-			name: "Plain",
-			auth: plainAuth,
-		},
-		{name: "MD5-CRAM",
-			auth: md5CRAMAuth,
-		},
-	}
-	for _, test := range testCases {
-		c, err := smtp.Dial(address)
-		assert.NoError(t, err)
-
-		err = c.Hello("localhost")
-		assert.NoError(t, err)
-
-		err = c.StartTLS(clientTLSConfig)
-		assert.NoError(t, err)
-
-		isAuthSupported, _ := c.Extension("AUTH")
-		assert.True(t, isAuthSupported)
-
-		err = c.Auth(test.auth)
-		assert.NoError(t, err)
-
-		err = c.Mail("test0@test.com")
-		assert.NoError(t, err)
-		err = c.Rcpt("rtest0@test.com")
-		assert.NoError(t, err)
-		wc, err := c.Data()
-		assert.NoError(t, err)
-
-		err = sendMessageBody(wc, "test0@test.com", "rtest0@test.com", "Test", strings.NewReader("Hi"))
-		assert.NoError(t, err)
-
-		err = c.Quit()
-		assert.NoError(t, err)
-
-		mail := <-mailChan
-		assert.Equal(t, "test0@test.com", mail.Sender)
-		assert.Equal(t, "rtest0@test.com", mail.Recipient[0])
-	}
-}
-
-func startTesTLStServer(t *testing.T, address string, serverTLSConfig *tls.Config, mailChan chan *storage.Envelope, exts []string, auth AuthenticationService) {
-
-	ln, err := net.Listen("tcp", address)
-	assert.NoError(t, err)
-	for {
-		conn, err := ln.Accept()
-		assert.NoError(t, err)
-
-		session := &Session{
-			conn:       &conn,
-			Conn:       textproto.NewConn(conn),
-			Server:     "localhost",
-			TLSConfig:  serverTLSConfig,
-			Extensions: append(exts, StartTLS),
-			Auth:       &auth,
-		}
-		err = session.Start()
-		if err != nil {
-			session.HandleUnknownError(err)
-			assert.Fail(t, err.Error())
-			close(mailChan)
-		}
-
-		mail, err := session.GetMail()
-		if err != nil {
-			session.HandleUnknownError(err)
-			assert.Fail(t, err.Error())
-			close(mailChan)
-		}
-		mailChan <- mail
-	}
 }
