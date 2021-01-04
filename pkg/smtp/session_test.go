@@ -25,23 +25,19 @@ func TestSession_HandleReset(t *testing.T) {
 		conn, err := ln.Accept()
 		assert.NoError(t, err)
 		session := &Session{
+			conn:   conn,
 			Conn:   textproto.NewConn(conn),
 			Server: "localhost",
+			Receiver: &TestMailReceiver{
+				mailChan: mailChan,
+			},
 		}
-		err = session.Start()
+		err = session.Handle()
 		if err != nil {
 			session.HandleUnknownError(err)
 			assert.Fail(t, err.Error())
 			close(mailChan)
 		}
-
-		mail, err := session.GetMail()
-		if err != nil {
-			session.HandleUnknownError(err)
-			assert.Fail(t, err.Error())
-			close(mailChan)
-		}
-		mailChan <- mail
 	}()
 
 	c, err := smtp.Dial(address)
@@ -159,7 +155,6 @@ func TestSession_HandleAuth(t *testing.T) {
 				require.Error(t, err)
 				err = c.Quit()
 				require.NoError(t, err)
-				<-mailChan
 				return false
 			},
 		},
@@ -169,7 +164,6 @@ func TestSession_HandleAuth(t *testing.T) {
 				plainAuth := smtp.PlainAuth("", username, "pawn", "localhost")
 				err = c.Auth(plainAuth)
 				require.Error(t, err)
-				<-mailChan
 				return false
 			},
 		},
@@ -216,27 +210,23 @@ func startTesTLStServer(t *testing.T, address string, serverTLSConfig *tls.Confi
 		assert.NoError(t, err)
 
 		session := &Session{
-			conn:       &conn,
+			conn:       conn,
 			Conn:       textproto.NewConn(conn),
 			Server:     "localhost",
 			TLSConfig:  serverTLSConfig,
 			Extensions: append(exts, StartTLS),
 			Auth:       auth,
 			Secure:     isSecure,
+			Receiver: &TestMailReceiver{
+				mailChan: mailChan,
+			},
 		}
-		err = session.Start()
+		err = session.Handle()
 		if err != nil {
 			session.HandleUnknownError(err)
 			assert.Fail(t, err.Error())
 			close(mailChan)
 		}
-
-		mail, err := session.GetMail()
-		if err != nil {
-			session.HandleUnknownError(err)
-			assert.NoError(t, err)
-		}
-		mailChan <- mail
 	}
 }
 
@@ -308,5 +298,16 @@ func (auth *TestAuthService) AddUser(username string, password []byte) error {
 		return fmt.Errorf("user %s already exisits", username)
 	}
 	auth.userDB[username] = password
+	return nil
+}
+
+type TestMailReceiver struct {
+	mailChan chan *Envelope
+}
+
+func (r *TestMailReceiver) Receive(mail *Envelope) error {
+	go func() {
+		r.mailChan <- mail
+	}()
 	return nil
 }

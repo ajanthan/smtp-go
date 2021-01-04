@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"net/textproto"
 	"strings"
+	"time"
 )
 
 const (
@@ -16,9 +17,8 @@ const (
 	Auth     = "AUTH PLAIN LOGIN MD5-CRAM"
 )
 
-//TODO: support AUTH
 type Session struct {
-	conn                     *net.Conn
+	conn                     net.Conn
 	Conn                     *textproto.Conn
 	Server                   string
 	Client                   string
@@ -31,12 +31,134 @@ type Session struct {
 	Extensions               []string
 	Auth                     AuthenticationService
 	Secure                   bool
+	Receiver                 MailReceiver
+	ConnTimeOut              int
 }
 
-func (s *Session) Start() error {
+func (s *Session) Handle() error {
+	if s.ConnTimeOut == 0 {
+		s.ConnTimeOut = 180
+	}
+	err := s.conn.SetReadDeadline(time.Now().Add(time.Duration(s.ConnTimeOut) * time.Second))
+	if err != nil {
+		return NewServerError(fmt.Sprintf("error setting connection timout %v", err))
+	}
+
 	greetings := s.Server + " ESMTP smtp-go"
 	if err := s.Reply(StatusReady, greetings); err != nil {
 		return NewServerError(fmt.Sprintf("error sending ready message %v", err))
+	}
+	var envelope *Envelope
+	// handling smtp commands
+	for {
+		cmd, err := s.NextCMD()
+		if err != nil {
+			if errors.As(err, &SyntaxError{}) {
+				if err := s.Reply(StatusSyntaxError, err.Error()); err != nil {
+					log.Printf("wrong syntax %v", err)
+					return err
+				}
+			} else if errors.As(err, &OutOfOrderCmdError{}) {
+				if err := s.Reply(StatusOutOfSequenceCmdError, err.Error()); err != nil {
+					log.Printf("out of sequence commands %v", err)
+					return err
+				}
+			} else if errors.As(err, &ServerError{}) {
+				return err
+			}
+			panic(fmt.Sprintf("error cmd %v", err))
+		}
+		switch cmd.Name {
+		case "QUIT":
+			err := s.HandleQuit()
+			if err != nil {
+				return err
+			}
+			return nil
+		case "EHLO", "HELO":
+			err := s.HandleHello(cmd)
+			if err != nil {
+				return err
+			}
+		case "MAIL":
+			isRequired, err := s.checkAuthRequired()
+			if err != nil {
+				return err
+			}
+			if !isRequired {
+				if envelope == nil {
+					envelope = NewEnvelope(s.Server)
+				}
+				envelope.Sender, err = s.HandleMail(cmd)
+				if err != nil {
+					return err
+				}
+			}
+		case "RCPT":
+			isRequired, err := s.checkAuthRequired()
+			if err != nil {
+				return err
+			}
+			if !isRequired {
+				recipient, err := s.HandleRcpt(cmd)
+				if err != nil {
+					return err
+				}
+				envelope.Recipient = append(envelope.Recipient, recipient)
+			}
+		case "DATA":
+			isRequired, err := s.checkAuthRequired()
+			if err != nil {
+				return err
+			}
+			if !isRequired {
+				envelope.Content, err = s.HandleData(cmd)
+				if err != nil {
+					return err
+				}
+				err = s.Receiver.Receive(envelope)
+				if err != nil {
+					return NewServerError(fmt.Sprintf("error persisting mail %v", err))
+				}
+				envelope = nil
+			}
+		case "RSET":
+			envelope = NewEnvelope(s.Server)
+			err := s.HandleReset()
+			if err != nil {
+				return err
+			}
+		case "STARTTLS":
+			if s.TLSConfig != nil {
+				envelope = NewEnvelope(s.Server)
+				err := s.HandleStartTLS()
+				if err != nil {
+					return err
+				}
+			} else {
+				if err := s.Reply(StatusCommandNotImplemented, fmt.Sprintf("%s is not supported", cmd.Name)); err != nil {
+					return NewServerError(fmt.Sprintf("error sending reply %v", err))
+				}
+			}
+		case "AUTH":
+			if s.Auth != nil {
+				if envelope == nil {
+					envelope = NewEnvelope(s.Server)
+				}
+				err := s.HandleAuth(cmd.Args, envelope.MessageID)
+				if err != nil {
+					return err
+				}
+			} else {
+				if err := s.Reply(StatusCommandNotImplemented, fmt.Sprintf("%s is not supported", cmd.Name)); err != nil {
+					return NewServerError(fmt.Sprintf("error sending reply %v", err))
+				}
+			}
+		default:
+			if err := s.Reply(StatusCommandNotImplemented, fmt.Sprintf("%s is not supported", cmd.Name)); err != nil {
+				return NewServerError(fmt.Sprintf("error sending reply %v", err))
+			}
+		}
 	}
 	return nil
 }
@@ -142,7 +264,7 @@ func (s *Session) HandleStartTLS() error {
 	s.IsHelloReceived = false
 	s.IsAtLeastOneRcptReceived = false
 	s.IsMailReceived = false
-	tlsConn := tls.Server(*s.conn, s.TLSConfig)
+	tlsConn := tls.Server(s.conn, s.TLSConfig)
 	s.Conn = textproto.NewConn(tlsConn)
 	s.IsTLSConn = true
 	return nil
@@ -187,111 +309,6 @@ func (s *Session) NextCMD() (Command, error) {
 		}
 	}
 	return command, nil
-}
-
-func (s *Session) GetMail() (*Envelope, error) {
-	envelope := NewEnvelope(s.Server)
-	// handling smtp commands
-	for {
-		cmd, err := s.NextCMD()
-		if err != nil {
-			if errors.As(err, &SyntaxError{}) {
-				if err = s.Reply(StatusSyntaxError, err.Error()); err != nil {
-					log.Printf("wrong syntax %v", err)
-					return nil, err
-				}
-			} else if errors.As(err, &OutOfOrderCmdError{}) {
-				if err = s.Reply(StatusOutOfSequenceCmdError, err.Error()); err != nil {
-					log.Printf("out of sequence commands %v", err)
-					return nil, err
-				}
-			} else if errors.As(err, &ServerError{}) {
-				return nil, err
-			}
-			panic(fmt.Sprintf("error cmd %s", err))
-		}
-		switch cmd.Name {
-		case "QUIT":
-			err := s.HandleQuit()
-			if err != nil {
-				return nil, err
-			}
-			return envelope, nil
-		case "EHLO", "HELO":
-			err := s.HandleHello(cmd)
-			if err != nil {
-				return nil, err
-			}
-		case "MAIL":
-			isRequired, err := s.checkAuthRequired()
-			if err != nil {
-				return nil, err
-			}
-			if !isRequired {
-				envelope.Sender, err = s.HandleMail(cmd)
-				if err != nil {
-					return nil, err
-				}
-			}
-		case "RCPT":
-			isRequired, err := s.checkAuthRequired()
-			if err != nil {
-				return nil, err
-			}
-			if !isRequired {
-				recipient, err := s.HandleRcpt(cmd)
-				if err != nil {
-					return nil, err
-				}
-				envelope.Recipient = append(envelope.Recipient, recipient)
-			}
-		case "DATA":
-			isRequired, err := s.checkAuthRequired()
-			if err != nil {
-				return nil, err
-			}
-			if !isRequired {
-				envelope.Content, err = s.HandleData(cmd)
-				if err != nil {
-					return nil, err
-				}
-			}
-		case "RSET":
-			envelope = NewEnvelope(s.Server)
-			err := s.HandleReset()
-			if err != nil {
-				return nil, err
-			}
-		case "STARTTLS":
-			if s.TLSConfig != nil {
-				envelope = NewEnvelope(s.Server)
-				err := s.HandleStartTLS()
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				if err := s.Reply(StatusCommandNotImplemented, fmt.Sprintf("%s is not supported", cmd.Name)); err != nil {
-					return nil, NewServerError(fmt.Sprintf("error sending reply %v", err))
-				}
-			}
-		case "AUTH":
-			if s.Auth != nil {
-				err := s.HandleAuth(cmd.Args, envelope.MessageID)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				if err := s.Reply(StatusCommandNotImplemented, fmt.Sprintf("%s is not supported", cmd.Name)); err != nil {
-					return nil, NewServerError(fmt.Sprintf("error sending reply %v", err))
-				}
-			}
-		default:
-			if err := s.Reply(StatusCommandNotImplemented, fmt.Sprintf("%s is not supported", cmd.Name)); err != nil {
-				return nil, NewServerError(fmt.Sprintf("error sending reply %v", err))
-			}
-		}
-	}
-	return envelope, nil
 }
 
 func (s *Session) HandleAuth(args []string, messageID string) error {

@@ -16,6 +16,7 @@ type Server struct {
 	TLSConfig   *tls.Config
 	AuthService AuthenticationService
 	Secure      bool
+	ConnTimeOut int
 }
 
 func (s Server) Start() {
@@ -30,11 +31,13 @@ func (s Server) Start() {
 		}
 		go func() {
 			session := &Session{
-				Conn:   textproto.NewConn(conn),
-				conn:   &conn,
-				Server: s.Address,
-				Secure: s.Secure,
-				Auth:   s.AuthService,
+				Conn:        textproto.NewConn(conn),
+				conn:        conn,
+				Server:      s.Address,
+				Secure:      s.Secure,
+				Auth:        s.AuthService,
+				Receiver:    s.Receiver,
+				ConnTimeOut: s.ConnTimeOut,
 			}
 			if s.TLSConfig != nil {
 				session.TLSConfig = s.TLSConfig
@@ -43,20 +46,10 @@ func (s Server) Start() {
 			if s.Secure {
 				session.Extensions = append(session.Extensions, Auth)
 			}
-			err := session.Start()
+			err := session.Handle()
 			if err != nil {
 				session.HandleUnknownError(err)
 				log.Printf("error starting session %v", err)
-			}
-			mail, err := session.GetMail()
-			if err != nil {
-				session.HandleUnknownError(err)
-				log.Printf("error Receiving mail %v", err)
-			} else {
-				err := s.Receiver.Receive(mail)
-				if err != nil {
-					log.Printf("error handling received mail %v", err)
-				}
 			}
 		}()
 	}
