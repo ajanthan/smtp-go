@@ -2,17 +2,24 @@ package storage
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"github/ajanthan/smtp-go/pkg/smtp"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"io"
+	"log"
+	"mime"
+	"mime/multipart"
+	"mime/quotedprintable"
 	gomail "net/mail"
+	"strings"
 )
 
 type Storage interface {
 	Persist(mail Mail) error
 	GetAll() ([]Mail, error)
-	GetBodyByMailID(mailID uint) (Body, error)
+	GetBodyByMailID(mailID uint) (Content, error)
 }
 
 type SQLiteStorage struct {
@@ -24,7 +31,7 @@ func NewStorage(dbFile string) (*SQLiteStorage, error) {
 	if err != nil {
 		return &SQLiteStorage{}, err
 	}
-	err = db.AutoMigrate(&Mail{}, &Body{}, &User{})
+	err = db.AutoMigrate(&Mail{}, &Content{}, &User{})
 	if err != nil {
 		return &SQLiteStorage{}, err
 	}
@@ -34,7 +41,7 @@ func NewStorage(dbFile string) (*SQLiteStorage, error) {
 	return storage, nil
 }
 
-func (s SQLiteStorage) Persist(mail Mail) error {
+func (s SQLiteStorage) Persist(mail *Mail) error {
 	tx := s.Db.Create(&mail)
 	if tx.Error != nil {
 		return tx.Error
@@ -50,8 +57,8 @@ func (s SQLiteStorage) GetAll() ([]Mail, error) {
 	return mails, nil
 }
 
-func (s SQLiteStorage) GetBodyByMailID(mailID uint) (Body, error) {
-	var body Body
+func (s SQLiteStorage) GetBodyByMailID(mailID uint) ([]*Content, error) {
+	var body []*Content
 	var mail Mail
 	tx := s.Db.Find(&mail, "ID=?", mailID)
 	if tx.Error != nil {
@@ -97,8 +104,8 @@ func (p PrinterReceiver) Receive(mail *smtp.Envelope) error {
 	return nil
 }
 
-func NewMail(msg *gomail.Message) (Mail, error) {
-	mail := Mail{
+func NewMail(msg *gomail.Message) (*Mail, error) {
+	mail := &Mail{
 		Subject:   msg.Header.Get("Subject"),
 		From:      msg.Header.Get("From"),
 		To:        msg.Header["To"],
@@ -106,19 +113,116 @@ func NewMail(msg *gomail.Message) (Mail, error) {
 		MessageID: msg.Header.Get("Message-ID"),
 		Date:      msg.Header.Get("Date"),
 	}
-	_, isMIME := msg.Header["Mime-Version"]
-	if isMIME {
-		mail.Body = Body{
-			ContentType: msg.Header.Get("Content-Type")}
-	} else {
-		mail.Body = Body{}
-	}
-	buff := new(bytes.Buffer)
-	_, err := buff.ReadFrom(msg.Body)
+	err := processMailBody(msg.Body, msg.Header, mail, false, false, false)
 	if err != nil {
-		return Mail{}, err
+		return nil, err
 	}
-	mail.Body.Data = buff.Bytes()
 	return mail, nil
 
+}
+
+func processMailBody(body io.Reader, headers gomail.Header, mail2 *Mail, isAttachment bool, isEmbedded bool, isAlt bool) error {
+	mediaType, params, err := mime.ParseMediaType(headers.Get("Content-Type"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	switch mediaType {
+	case "multipart/alternative":
+		isAlt = true
+		mr := multipart.NewReader(body, params["boundary"])
+		for {
+			part, err := mr.NextPart()
+			if err == io.EOF {
+				return nil
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = processMailBody(part, gomail.Header(part.Header), mail2, isAttachment, isEmbedded, isAlt)
+			if err != nil {
+				return err
+			}
+		}
+
+	case "multipart/related":
+		isEmbedded = true
+		mr := multipart.NewReader(body, params["boundary"])
+		for {
+			part, err := mr.NextPart()
+			if err == io.EOF {
+				return nil
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = processMailBody(part, gomail.Header(part.Header), mail2, isAttachment, isEmbedded, isAlt)
+			if err != nil {
+				return err
+			}
+		}
+
+	case "multipart/mixed":
+		isAttachment = true
+		mr := multipart.NewReader(body, params["boundary"])
+		for {
+			part, err := mr.NextPart()
+			if err == io.EOF {
+				return nil
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = processMailBody(part, gomail.Header(part.Header), mail2, isAttachment, isEmbedded, isAlt)
+			if err != nil {
+				return err
+			}
+		}
+	case "text/plain":
+		fallthrough
+	case "text/html":
+		fallthrough
+	default:
+		content := &Content{}
+		content.MailID = mail2.ID
+		content.ContentType = headers.Get("Content-Type")
+		content.Encoding = headers.Get("Content-Transfer-Encoding")
+		mailBuffer := &bytes.Buffer{}
+		switch strings.ToUpper(content.Encoding) {
+		case "BASE64":
+			_, err := mailBuffer.ReadFrom(base64.NewDecoder(base64.StdEncoding, body))
+			if err != nil {
+				return err
+			}
+		case "QUOTED-PRINTABLE":
+			_, err := mailBuffer.ReadFrom(quotedprintable.NewReader(body))
+			if err != nil {
+				return err
+			}
+		case "8BIT", "7Bit":
+			fallthrough
+		default:
+			_, err := mailBuffer.ReadFrom(body)
+			if err != nil {
+				return err
+			}
+		}
+		content.Data = mailBuffer.Bytes()
+		if isAlt {
+			content.Type = "Alt"
+			mail2.Body = append(mail2.Body, content)
+		} else if isEmbedded {
+			content.Type = "Emb"
+			content.Name = strings.TrimRight(strings.TrimLeft(headers.Get("Content-ID"), "<"), ">")
+			content.Layout = strings.Split(headers.Get("Content-Disposition"), ";")[0]
+		} else if isAttachment {
+			content.Type = "Att"
+			parts := strings.Split(headers.Get("Content-Disposition"), ";")
+			content.Layout = parts[0]
+			content.Name = strings.Split(parts[1], "=")[1]
+		} else {
+			content.Type = "Main"
+			mail2.Body = append(mail2.Body, content)
+		}
+	}
+	return nil
 }

@@ -11,13 +11,15 @@ import (
 
 type Mail struct {
 	gorm.Model
-	Date      string
-	From      string
-	ReplyTo   string
-	Subject   string
-	MessageID string
-	To        Recipients `sql:"type:text"`
-	Body      Body
+	Date        string
+	From        string
+	ReplyTo     string
+	Subject     string
+	MessageID   string
+	To          Recipients `sql:"type:text"`
+	Body        []*Content
+	Attachments []*Content
+	Embeds      []*Content
 }
 
 type Recipients []string
@@ -38,15 +40,18 @@ func (r *Recipients) Scan(input interface{}) error {
 	}
 }
 
-type Body struct {
+type Content struct {
 	gorm.Model
-	MailID uint
-	//TODO: Use io.Reader
+	MailID      uint
 	Data        []byte
 	ContentType string
+	Encoding    string
+	Type        string
+	Layout      string
+	Name        string
 }
 
-func (b Body) String() string {
+func (b *Content) String() string {
 	var builder strings.Builder
 	builder.WriteString("{\n")
 	builder.WriteString("Data:" + string(b.Data) + ",\n")
@@ -64,7 +69,7 @@ func (m Mail) String() string {
 	builder.WriteString("ReplyTo:" + m.ReplyTo + ",\n")
 	builder.WriteString("MessageID:" + m.MessageID + ",\n")
 	builder.WriteString("Date:" + m.Date + ",\n")
-	builder.WriteString("Body:" + m.Body.String() + "\n")
+	builder.WriteString("Body:" + fmt.Sprintf("%v", m.Body) + "\n")
 	builder.WriteString("}\n")
 	return builder.String()
 

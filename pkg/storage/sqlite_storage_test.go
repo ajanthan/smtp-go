@@ -16,13 +16,14 @@ func TestStorage(t *testing.T) {
 	})
 	storage, err := NewStorage(dbFile)
 	assert.NoError(t, err)
-	email := Mail{
+	email := &Mail{
 		Subject: "Test",
 		To:      []string{"test1@test.com"},
 		From:    "test@test.com",
-		Body: Body{
+		Body: []*Content{{
 			Data:        []byte("Hello!"),
 			ContentType: "plain/text",
+		},
 		},
 	}
 	err = storage.Persist(email)
@@ -33,6 +34,6 @@ func TestStorage(t *testing.T) {
 	assert.Equal(t, email.Subject, mails[0].Subject)
 	assert.Equal(t, email.To, mails[0].To)
 	assert.Equal(t, email.From, mails[0].From)
-	assert.Equal(t, email.Body.Data, body.Data)
-	assert.Equal(t, email.Body.ContentType, body.ContentType)
+	assert.Equal(t, email.Body[0].Data, body[0].Data)
+	assert.Equal(t, email.Body[0].ContentType, body[0].ContentType)
 }
