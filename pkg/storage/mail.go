@@ -11,15 +11,15 @@ import (
 
 type Mail struct {
 	gorm.Model
-	Date        string
-	From        string
-	ReplyTo     string
-	Subject     string
-	MessageID   string
-	To          Recipients `sql:"type:text"`
-	Body        []*Content
-	Attachments []*Content
-	Embeds      []*Content
+	Date         string
+	From         string
+	ReplyTo      string
+	Subject      string
+	MessageID    string
+	To           Recipients `sql:"type:text"`
+	Body         *Body
+	Alternatives []*Alternative
+	Attachments  []*Attachment
 }
 
 type Recipients []string
@@ -40,9 +40,29 @@ func (r *Recipients) Scan(input interface{}) error {
 	}
 }
 
-type Content struct {
+type Attachment struct {
 	gorm.Model
-	MailID      uint
+	*Content
+	MailID uint
+}
+type Alternative struct {
+	gorm.Model
+	*Content
+	MailID uint
+}
+type EmbeddedFile struct {
+	gorm.Model
+	*Content
+	BodyID uint
+}
+type Body struct {
+	gorm.Model
+	*Content
+	Embeds []*EmbeddedFile
+	MailID uint
+}
+
+type Content struct {
 	Data        []byte
 	ContentType string
 	Encoding    string
@@ -54,7 +74,7 @@ type Content struct {
 func (b *Content) String() string {
 	var builder strings.Builder
 	builder.WriteString("{\n")
-	builder.WriteString("Data:" + string(b.Data) + ",\n")
+	builder.WriteString("Content:" + string(b.Data) + ",\n")
 	builder.WriteString("Content-Type:" + b.ContentType + ",\n")
 	builder.WriteString("}\n")
 	return builder.String()

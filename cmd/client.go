@@ -78,7 +78,7 @@ var getMails = &cobra.Command{
 				fmt.Println("unable to get the mail content fot id=,", args[0])
 				os.Exit(1)
 			}
-			fmt.Printf("Message:%s", string(body[0].Data))
+			fmt.Printf("Message:%s", string(body.Data))
 		} else {
 			fmt.Println("getting all emails...")
 			emails, err := store.GetAll()
