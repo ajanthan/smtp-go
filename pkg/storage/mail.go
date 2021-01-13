@@ -19,7 +19,6 @@ type Mail struct {
 	To           Recipients `sql:"type:text"`
 	Body         *Body
 	Alternatives []*Alternative
-	Attachments  []*Attachment
 }
 
 type Recipients []string
@@ -43,12 +42,10 @@ func (r *Recipients) Scan(input interface{}) error {
 type Attachment struct {
 	gorm.Model
 	*Content
-	MailID uint
+	BodyID uint
 }
 type Alternative struct {
-	gorm.Model
-	*Content
-	MailID uint
+	*Body
 }
 type EmbeddedFile struct {
 	gorm.Model
@@ -58,8 +55,9 @@ type EmbeddedFile struct {
 type Body struct {
 	gorm.Model
 	*Content
-	Embeds []*EmbeddedFile
-	MailID uint
+	Embeds      []*EmbeddedFile
+	Attachments []*Attachment
+	MailID      uint
 }
 
 type Content struct {

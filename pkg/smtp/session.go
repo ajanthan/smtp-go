@@ -4,10 +4,12 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/mail"
 	"net/textproto"
+	"os"
 	"strings"
 	"time"
 )
@@ -230,7 +232,13 @@ func (s *Session) HandleData(Command) (*mail.Message, error) {
 	if err := s.Reply(StatusContinue, message); err != nil {
 		return nil, NewServerError(fmt.Sprintf("error sending hello %v", err))
 	}
-	msg, err := mail.ReadMessage(s.Conn.DotReader())
+	var mailReader io.Reader
+	if os.Getenv("DUMB_MAIL") != "" {
+		mailReader = io.TeeReader(s.Conn.DotReader(), os.Stdout)
+	} else {
+		mailReader = s.Conn.DotReader()
+	}
+	msg, err := mail.ReadMessage(mailReader)
 	if err != nil {
 		return nil, NewServerError(fmt.Sprintf("error reading mail body %v", err))
 	}
